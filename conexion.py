@@ -43,3 +43,4 @@ class Conexion:
             print(f"Error al ejecutar la consulta: {e}")
             return f'Error: {e}'
     
+        
