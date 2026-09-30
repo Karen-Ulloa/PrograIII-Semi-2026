@@ -100,6 +100,17 @@
             </div>
         </div>
     </div>
+    <div class="container-fluid"><hr><h5>Registro del período y balance</h5>
+<div class="row">
+<div class="col-3"><select id="cboEmpresa" class="form-control"></select></div>
+<div class="col-2"><input type="date" id="txtDesde" class="form-control"></div>
+<div class="col-2"><input type="date" id="txtHasta" class="form-control"></div>
+<div class="col-2"><input type="number" id="txtBalance" class="form-control" placeholder="Balance"></div>
+<div class="col-3"><button onclick="calcularImpuesto()" class="btn btn-info">Calcular</button> <button onclick="guardarPeriodo()" class="btn btn-success">Registrar</button></div>
+</div>
+<div id="lblImpuesto" class="alert alert-warning mt-2">Impuesto: $0.00</div>
+<table class="table table-bordered"><thead><tr><th>Cliente</th><th>Desde</th><th>Hasta</th><th>Balance</th><th>precioCalculado</th></tr></thead><tbody id="tblPeriodos"></tbody></table>
+</div>
 </body>
 <script>
     var accion = 'nuevo',
@@ -200,6 +211,40 @@
         txtEmailCliente.value = '';
         cboTipoPersona.value = 'particular';
     }
+    
+async function cargarEmpresas(){
+    try{
+        let r = await fetch('/clientes?buscar=');
+        let d = await r.json();
+        document.getElementById('cboEmpresa').innerHTML = d.map(e=>`<option value="${e.idCliente}">${e.codigo} - ${e.nombre}</option>`).join('');
+    }catch(e){ console.log(e); }
+}
+async function calcularImpuesto(){
+    let bal = document.getElementById('txtBalance').value;
+    if(!bal){ alert("pon balance"); return; }
+    let r = await fetch('/calcular',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({balance:bal})});
+    let d = await r.json();
+    if(d.msg && !d.impuesto){ alert(d.msg); return; }
+    document.getElementById('lblImpuesto').innerText = `Impuesto: $${d.impuesto}`;
+}
+async function cargarPeriodos(){
+    let r = await fetch('/periodos'); let d = await r.json();
+    document.getElementById('tblPeriodos').innerHTML = d.map(p=>`<tr><td>${p.cliente_nombre||p.idCliente}</td><td>${p.fechaDesde}</td><td>${p.fechaHasta}</td><td>${p.balance}</td><td>$${p.precioCalculado}</td></tr>`).join('');
+}
+async function guardarPeriodo(){
+    let datos={
+        idCliente: document.getElementById('cboEmpresa').value,
+        fechaDesde: document.getElementById('txtDesde').value,
+        fechaHasta: document.getElementById('txtHasta').value,
+        balance: document.getElementById('txtBalance').value
+    };
+    let r = await fetch('/periodo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(datos)});
+    let res = await r.json();
+    if(res.msg!='ok') alert(res.msg); else { alert('Registrado'); cargarPeriodos(); }
+}
+cargarEmpresas();
+cargarPeriodos();
+
 </script>
 
 </html>
