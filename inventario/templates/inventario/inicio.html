@@ -26,13 +26,12 @@
                 <p class="bienvenido-texto">BIENVENIDO A CAMPESINOSTOCK</p>
                 <h1 class="titulo-cuenta">Accede a tu cuenta</h1>
                 
-                <button class="btn-vino">Iniciar sesión</button>
-                <button class="btn-borde">Registrarse</button>
+                <a href="{% url 'login' %}"><button class="btn-vino">Iniciar sesión</button></a>
+                <a href="{% url 'registro' %}"><button class="btn-borde">Registrarse</button></a>
 
-                <div class="terminos">
-                    <input type="checkbox" id="terminos">
-                    <label for="terminos">Acepto términos de uso y políticas</label>
-                </div>
+                <p style="font-size:11px; color:#888; margin-top:20px; text-align:center;">
+                 Al continuar aceptas nuestros <a href="{% url 'terminos' %}" style="color:#6b1c23;">términos y políticas</a>
+                </p>
 
                 <p class="pie-derecho">© 2026 Agroferretería El Campesino</p>
             </div>
