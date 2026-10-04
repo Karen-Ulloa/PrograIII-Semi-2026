@@ -1,0 +1,44 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>CampesinoStock</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'inventario/css/estilos.css' %}">
+</head>
+<body>
+
+    <div class="contenedor-principal">
+        
+        <!-- LADO IZQUIERDO - ORIGINAL COMO AL PRINCIPIO -->
+        <div class="lado-izquierdo">
+            <div class="logo-simple">
+                <img src="{% static 'inventario/img/logo.png' %}" alt="Logo El Campesino" width="220">
+            </div>
+            <h2>Todo lo que necesitas,<br>en un solo lugar.</h2>
+            <p class="texto-original">Sistema de inventario para Agroferretería El Campesino.</p>
+        </div>
+
+        <!-- LADO DERECHO - BONITO -->
+        <div class="lado-derecho">
+            <div class="caja-login">
+                <p class="bienvenido-texto">BIENVENIDO A CAMPESINOSTOCK</p>
+                <h1 class="titulo-cuenta">Accede a tu cuenta</h1>
+                
+                <button class="btn-vino">Iniciar sesión</button>
+                <button class="btn-borde">Registrarse</button>
+
+                <div class="terminos">
+                    <input type="checkbox" id="terminos">
+                    <label for="terminos">Acepto términos de uso y políticas</label>
+                </div>
+
+                <p class="pie-derecho">© 2026 Agroferretería El Campesino</p>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>
