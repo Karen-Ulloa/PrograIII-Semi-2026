@@ -2,42 +2,53 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>CampesinoStock</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'inventario/css/estilos.css' %}">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap');
+body{margin:0; height:100vh; overflow:hidden; background:#fdfaf6}
+.izquierda{background:#5a1016; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; position:relative}
+.derecha{background:#fdfaf6; height:100vh; display:flex; justify-content:center; align-items:center; position:relative}
+.logo-box{background:white; padding:14px; border-radius:18px; box-shadow:0 4px 15px rgba(0,0,0,0.2)}
+.logo-box img{width:310px; display:block; border-radius:10px}
+.titulo-izq{font-family:'Merriweather', serif; font-size:32px; font-weight:700; color:white; line-height:1.2; margin-top:35px}
+.sub-izq{font-size:13px; color:rgba(255,255,255,0.7); margin-top:18px}
+.copy{position:absolute; bottom:20px; font-size:11px; color:rgba(255,255,255,0.4)}
+.btn-vino{background:#5a1016; color:white; border-radius:10px; padding:14px; width:100%; font-weight:600; border:none}
+.btn-borde{border:1.5px solid #5a1016; color:#5a1016; border-radius:10px; padding:14px; width:100%; font-weight:600; background:transparent}
+.btn-vino:hover{background:#421018; color:white}
+.btn-borde:hover{background:#5a1016; color:white}
+</style>
 </head>
 <body>
+<div class="container-fluid p-0">
+<div class="row g-0">
 
-    <div class="contenedor-principal">
-        
-        <!-- LADO IZQUIERDO - ORIGINAL COMO AL PRINCIPIO -->
-        <div class="lado-izquierdo">
-            <div class="logo-simple">
-                <img src="{% static 'inventario/img/logo.png' %}" alt="Logo El Campesino" width="220">
-            </div>
-            <h2>Todo lo que necesitas,<br>en un solo lugar.</h2>
-            <p class="texto-original">Sistema de inventario para Agroferretería El Campesino.</p>
-        </div>
+<div class="col-md-7 izquierda">
+  <div class="logo-box">
+    <img src="{% static 'inventario/img/logo.png' %}" alt="El Campesino">
+  </div>
+  <div class="titulo-izq">Todo lo que necesitas,<br>en un solo lugar.</div>
+  <div class="sub-izq">Sistema de inventario para Agroferretería El Campesino</div>
+  <div class="copy">© 2026 CampesinoStock - Todos los derechos reservados</div>
+</div>
 
-        <!-- LADO DERECHO - BONITO -->
-        <div class="lado-derecho">
-            <div class="caja-login">
-                <p class="bienvenido-texto">BIENVENIDO A CAMPESINOSTOCK</p>
-                <h1 class="titulo-cuenta">Accede a tu cuenta</h1>
-                
-                <a href="{% url 'login' %}"><button class="btn-vino">Iniciar sesión</button></a>
-                <a href="{% url 'registro' %}"><button class="btn-borde">Registrarse</button></a>
+<div class="col-md-5 derecha">
+  <div style="width:360px; padding:20px">
+    <p class="small text-uppercase mb-2" style="letter-spacing:2px; font-size:11px; color:#888; font-weight:600">BIENVENIDO A CAMPESINOSTOCK</p>
+    <h2 style="font-family:'Merriweather', serif; font-weight:700; color:#222; font-size:28px" class="mb-5">Accede a tu cuenta</h2>
 
-                <p style="font-size:11px; color:#888; margin-top:20px; text-align:center;">
-                 Al continuar aceptas nuestros <a href="{% url 'terminos' %}" style="color:#6b1c23;">términos y políticas</a>
-                </p>
+    <a href="{% url 'login' %}" class="btn btn-vino mb-3 d-block text-center text-decoration-none">Iniciar sesión</a>
+    <a href="{% url 'registro' %}" class="btn btn-borde d-block text-center text-decoration-none">Registrarse</a>
 
-                <p class="pie-derecho">© 2026 Agroferretería El Campesino</p>
-            </div>
-        </div>
+    <p class="text-center mt-4" style="font-size:10px; color:#aaa">
+      Al continuar aceptas nuestros <a href="{% url 'terminos' %}" style="color:#888; text-decoration:underline">Términos y Privacidad</a>
+    </p>
+  </div>
+</div>
 
-    </div>
-
+</div>
+</div>
 </body>
 </html>
