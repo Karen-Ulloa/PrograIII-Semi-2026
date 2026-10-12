@@ -42,6 +42,7 @@ class Empleados(models.Model):
     telefono = models.CharField(max_length=20)
     usuario = models.CharField(max_length=50, unique=True)
     password = models.CharField(max_length=255)
+    rol = models.CharField(max_length=20, default='Empleado')
     class Meta:
         db_table = 'empleados'
 

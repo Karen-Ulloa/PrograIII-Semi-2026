@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<title>Verificar código</title>
+<style>
+body{background:#fdfbf7}
+.card{border-radius:16px;box-shadow:0 4px 18px rgba(0,0,0,.08);border:0}
+.btn-vino{background:#5a1016;color:white;border-radius:30px;padding:10px}
+.btn-vino:hover{background:#74151d;color:white}
+a{color:#5a1016}
+.form-control:focus{border-color:#5a1016;box-shadow:0 0 0 .2rem rgba(90,16,22,.15)}
+.codigo{text-align:center;font-size:1.6rem;letter-spacing:.5rem}
+</style>
+</head>
+<body>
+<main class="container d-flex justify-content-center mt-5">
+<section class="card p-4" style="width:420px;max-width:100%">
+<a href="{% url 'recuperar' %}" class="text-decoration-none">&lt; Volver</a>
+<h1 class="h5 mt-3">Verificar código</h1>
+<p class="small text-muted">Escribe el código de 6 dígitos que enviamos a tu correo. Vence en 5 minutos.</p>
+
+<form method="POST" action="{% url 'verificar' %}">{% csrf_token %}
+<label class="small" for="codigo">Código de 6 dígitos</label>
+<input id="codigo" type="text" name="codigo" class="form-control codigo mt-1 mb-3" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000">
+<button class="btn btn-vino w-100">Verificar código</button>
+</form>
+
+{% if error %}<div class="alert alert-danger mt-3 mb-0">{{ error }}</div>{% endif %}
+</section>
+</main>
+</body>
+</html>

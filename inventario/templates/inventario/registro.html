@@ -1,16 +1,22 @@
 {% load static %}
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crear cuenta</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <style>
 body{margin:0; background:#fdfbf7}
 .izq{background:#5a1016; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; color:white; text-align:center; position:sticky; top:0}
 .btn-vino{background:#5a1016; color:white; border-radius:30px; padding:12px}
+.btn-vino:hover{background:#74151d; color:white}
 .campo{position:relative}.campo i{position:absolute; right:14px; top:50%; transform:translateY(-50%); cursor:pointer; color:#777}
 .form-control{border-radius:12px; padding:10px}
+.form-control:focus{border-color:#5a1016; box-shadow:0 0 0 .2rem rgba(90,16,22,.15)}
 .logo-box{background:white; padding:10px; border-radius:16px}
+.chip{cursor:pointer; background:#5a1016; color:white; padding:5px 12px; border-radius:20px; font-size:12px; border:0}
 </style>
 </head>
 <body>
@@ -23,36 +29,215 @@ body{margin:0; background:#fdfbf7}
 </div>
 <div class="col-md-6 d-flex justify-content-center" style="padding:30px 0">
 <div style="width:380px">
-<a href="{% url 'login' %}" class="small text-muted text-decoration-none">< Volver</a>
+<a href="{% url 'login' %}" class="small text-muted text-decoration-none">&lt; Volver</a>
 <h3 class="fw-bold mt-2">Crear cuenta</h3>
-<form method="POST" autocomplete="off" class="mt-3">
+{% if error %}<div class="alert alert-danger py-2 small">{{ error }}</div>{% endif %}
+
+<form method="POST" class="mt-3">
 {% csrf_token %}
-<label class="small fw-bold">Nombre *</label><input type="text" name="nombre" class="form-control mb-2" required>
-<label class="small fw-bold">Apellido *</label><input type="text" name="apellido" class="form-control mb-2" required>
-<label class="small fw-bold">Correo *</label><input type="text" id="correo_input" name="correo" class="form-control mb-2" required placeholder="ejemplo@correo.com">
-<label class="small fw-bold">Teléfono *</label><input type="text" name="telefono" class="form-control mb-2" required placeholder="0000-0000">
-<label class="small fw-bold">Dirección *</label><input type="text" name="direccion" class="form-control mb-2" required placeholder="Ej: Calle principal #123, frente a plaza">
-<label class="small fw-bold">Usuario *</label><input type="text" id="usuario_input" name="usuario" class="form-control mb-2" required readonly style="background:#f3f3f3">
-<small class="text-muted" style="font-size:11px; margin-top:-5px; display:block; margin-bottom:8px">Se genera automático desde tu correo</small>
-<label class="small fw-bold">Contraseña *</label>
-<div class="campo mb-2"><input type="password" id="p1" name="password" class="form-control" required><i class="bi bi-eye" onclick="ver('p1',this)"></i></div>
-<label class="small fw-bold">Confirmar Contraseña *</label>
-<div class="campo mb-3"><input type="password" id="p2" name="password2" class="form-control" required><i class="bi bi-eye" onclick="ver('p2',this)"></i></div>
+<label class="small fw-bold" for="nombre_input">Nombre *</label>
+<input type="text" id="nombre_input" name="nombre" class="form-control mb-2" required autocomplete="off" value="{{ datos.nombre }}">
+
+<label class="small fw-bold" for="apellido_input">Apellido *</label>
+<input type="text" id="apellido_input" name="apellido" class="form-control mb-2" required autocomplete="off" value="{{ datos.apellido }}">
+
+<label class="small fw-bold" for="correo_input">Correo *</label>
+<input type="email" id="correo_input" name="correo" class="form-control mb-2" required placeholder="ejemplo@correo.com" autocomplete="off" value="{{ datos.correo }}">
+
+<label class="small fw-bold" for="telefono_input">Teléfono *</label>
+<input type="text" id="telefono_input" name="telefono" class="form-control mb-2" required placeholder="0000-0000" autocomplete="off" value="{{ datos.telefono }}">
+
+<label class="small fw-bold" for="direccion_input">Dirección *</label>
+<input type="text" id="direccion_input" name="direccion" class="form-control mb-2" required placeholder="Ej: Calle principal #123, frente a plaza" autocomplete="off" value="{{ datos.direccion }}">
+
+<label class="small fw-bold" for="rol_input">Tipo de cuenta *</label>
+<select id="rol_input" name="rol" class="form-control mb-2" required>
+  <option value="Empleado" {% if datos.rol != 'Administrador' %}selected{% endif %}>Empleado</option>
+  <option value="Administrador" {% if datos.rol == 'Administrador' %}selected{% endif %}>Administrador</option>
+</select>
+
+<label class="small fw-bold" for="usuario_input">Usuario *</label>
+<input type="text" id="usuario_input" name="usuario" class="form-control mb-1" required autocomplete="username" autocapitalize="none" spellcheck="false" value="{{ datos.usuario }}">
+<div id="sugerencias_box" style="display:none" class="mb-2">
+  <small class="text-danger fw-bold" style="font-size:11px">Ese usuario ya existe, te sugerimos:</small>
+  <div id="lista_sugerencias" class="d-flex gap-2 flex-wrap mt-1"></div>
+</div>
+
+<label class="small fw-bold" for="p1">Contraseña *</label>
+<div class="campo mb-1">
+  <input type="password" id="p1" name="password" class="form-control" required autocomplete="new-password">
+  <i class="bi bi-eye" onclick="ver('p1',this)"></i>
+</div>
+<div class="progress mb-1" style="height:6px"><div id="barra" class="progress-bar" style="width:0%"></div></div>
+<small id="nivel" style="font-size:12px; font-weight:600"></small>
+<ul class="list-unstyled small mb-2 mt-1" style="font-size:12px">
+  <li id="r-largo" class="text-muted">✗ Mínimo 8 caracteres</li>
+  <li id="r-mayus" class="text-muted">✗ Una letra mayúscula</li>
+  <li id="r-minus" class="text-muted">✗ Una letra minúscula</li>
+  <li id="r-num" class="text-muted">✗ Un número</li>
+  <li id="r-esp" class="text-muted">✗ Un símbolo (! @ # $ % ...)</li>
+</ul>
+
+<label class="small fw-bold" for="p2">Confirmar Contraseña *</label>
+<div class="campo mb-1">
+  <input type="password" id="p2" name="password2" class="form-control" required autocomplete="new-password">
+  <i class="bi bi-eye" onclick="ver('p2',this)"></i>
+</div>
+<small id="coinciden" style="font-size:12px; display:block; margin-bottom:12px"></small>
+
 <button class="btn btn-vino w-100">Crear cuenta</button>
 </form>
 </div>
 </div>
 </div></div>
-<script>
-function ver(id, icon){let input=document.getElementById(id); if(input.type==='password'){input.type='text'; icon.className='bi bi-eye-slash';} else {input.type='password'; icon.className='bi bi-eye';}}
 
-document.getElementById('correo_input').addEventListener('input', function(){
-  let email = this.value.trim();
-  if(email.includes('@')){
-    let user = email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '');
-    document.getElementById('usuario_input').value = user;
+<script>
+function ver(id, icon){
+  let input = document.getElementById(id);
+  if(input.type === 'password'){ input.type = 'text'; icon.className = 'bi bi-eye-slash'; }
+  else { input.type = 'password'; icon.className = 'bi bi-eye'; }
+}
+
+const nombreInput = document.getElementById('nombre_input');
+const apellidoInput = document.getElementById('apellido_input');
+const usuarioInput = document.getElementById('usuario_input');
+const estado = document.getElementById('estado_usuario');
+const box = document.getElementById('sugerencias_box');
+const lista = document.getElementById('lista_sugerencias');
+let editadoAMano = false;
+let temporizador = null;
+
+function primeraPalabra(t){
+  return t.trim().toLowerCase().split(' ')[0].replace(/[^a-z]/g, '');
+}
+
+function revisarUsuario(){
+  const n = primeraPalabra(nombreInput.value);
+  const a = primeraPalabra(apellidoInput.value);
+  if(!n || !a){ return; }
+  const url = '/api/sugerir-usuario/?nombre=' + encodeURIComponent(n) +
+              '&apellido=' + encodeURIComponent(a) +
+              '&usuario=' + encodeURIComponent(usuarioInput.value.trim().toLowerCase());
+  fetch(url).then(r => r.json()).then(data => {
+    lista.innerHTML = '';
+    if(data.ocupado){
+      estado.textContent = '';
+      box.style.display = 'block';
+      data.sugerencias.forEach(s => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.textContent = s;
+        b.addEventListener('click', () => {
+          usuarioInput.value = s;
+          editadoAMano = true;
+          revisarUsuario();
+        });
+        lista.appendChild(b);
+      });
+    } else {
+      box.style.display = 'none';
+      if(usuarioInput.value.trim()){
+        estado.textContent = 'Usuario disponible';
+        estado.style.color = '#198754';
+      }
+    }
+  });
+}
+
+function proponerUsuario(){
+  const n = primeraPalabra(nombreInput.value);
+  const a = primeraPalabra(apellidoInput.value);
+  if(n && a && !editadoAMano){
+    usuarioInput.value = n + '.' + a;
+  }
+  revisarUsuario();
+}
+
+nombreInput.addEventListener('blur', proponerUsuario);
+apellidoInput.addEventListener('blur', proponerUsuario);
+
+usuarioInput.addEventListener('input', () => {
+  editadoAMano = usuarioInput.value.trim() !== '';
+  estado.textContent = '';
+  clearTimeout(temporizador);
+  temporizador = setTimeout(revisarUsuario, 400);
+});
+
+/* ===== Seguridad de la contraseña ===== */
+const p1 = document.getElementById('p1');
+const p2 = document.getElementById('p2');
+const reglas = {
+  'r-largo': v => v.length >= 8,
+  'r-mayus': v => /[A-Z]/.test(v),
+  'r-minus': v => /[a-z]/.test(v),
+  'r-num':   v => /\d/.test(v),
+  'r-esp':   v => /[^A-Za-z0-9]/.test(v)
+};
+const textos = {
+  'r-largo': 'Mínimo 8 caracteres',
+  'r-mayus': 'Una letra mayúscula',
+  'r-minus': 'Una letra minúscula',
+  'r-num':   'Un número',
+  'r-esp':   'Un símbolo (! @ # $ % ...)'
+};
+
+function revisarPassword(){
+  const v = p1.value;
+  let cumplidas = 0;
+  for (const id in reglas){
+    const ok = reglas[id](v);
+    const li = document.getElementById(id);
+    li.textContent = (ok ? '✓ ' : '✗ ') + textos[id];
+    li.className = ok ? 'text-success' : 'text-muted';
+    if (ok) cumplidas++;
+  }
+  const barra = document.getElementById('barra');
+  const nivel = document.getElementById('nivel');
+  barra.style.width = (cumplidas * 20) + '%';
+  if (v === ''){
+    nivel.textContent = '';
+  } else if (cumplidas <= 2){
+    barra.className = 'progress-bar bg-danger';
+    nivel.textContent = 'Contraseña débil';
+    nivel.style.color = '#dc3545';
+  } else if (cumplidas <= 4){
+    barra.className = 'progress-bar bg-warning';
+    nivel.textContent = 'Contraseña media';
+    nivel.style.color = '#b45309';
+  } else {
+    barra.className = 'progress-bar bg-success';
+    nivel.textContent = 'Contraseña segura';
+    nivel.style.color = '#198754';
+  }
+  revisarCoinciden();
+  return cumplidas === 5;
+}
+
+function revisarCoinciden(){
+  const c = document.getElementById('coinciden');
+  if (p2.value === ''){ c.textContent = ''; return; }
+  if (p1.value === p2.value){
+    c.textContent = '✓ Las contraseñas coinciden';
+    c.style.color = '#198754';
+  } else {
+    c.textContent = '✗ Las contraseñas no coinciden';
+    c.style.color = '#dc3545';
+  }
+}
+
+p1.addEventListener('input', revisarPassword);
+p2.addEventListener('input', revisarCoinciden);
+
+document.querySelector('form').addEventListener('submit', function(e){
+  if (!revisarPassword()){
+    e.preventDefault();
+    p1.focus();
   }
 });
+/* Al volver con un error, conserva lo escrito y revisa el usuario */
+if (usuarioInput.value.trim()) { editadoAMano = true; }
+if (nombreInput.value.trim() && apellidoInput.value.trim()) { revisarUsuario(); }
 </script>
 </body>
 </html>
