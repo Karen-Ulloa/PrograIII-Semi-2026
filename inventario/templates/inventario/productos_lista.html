@@ -1,0 +1,133 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Productos - CampesinoStock{% endblock %}
+{% block encabezado %}Productos{% endblock %}
+
+{% block contenido %}
+<div id="config" hidden
+     data-admin="{{ es_admin|yesno:'true,false' }}"
+     data-csrf="{{ csrf_token }}"
+     data-api="{% url 'api_productos' %}"
+     data-editar="{% url 'producto_editar' 0 %}"
+     data-eliminar="{% url 'producto_eliminar' 0 %}"></div>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h2 class="m-0" style="font-size:34px">Productos</h2>
+  {% if es_admin %}
+  <a href="{% url 'producto_nuevo' %}" class="btn btn-vino"><i class="bi bi-plus-lg"></i> Nuevo producto</a>
+  {% endif %}
+</div>
+
+<div class="caja mb-3">
+  <div class="row g-2">
+    <div class="col-md-8">
+      <div class="input-group">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input type="search" id="buscar" class="form-control" placeholder="Buscar por nombre o categoría..." autocomplete="off">
+      </div>
+    </div>
+    <div class="col-md-4">
+      <select id="categoria" class="form-select">
+        <option value="">Todas las categorías</option>
+        {% for c in categorias %}<option value="{{ c.id_categoria }}">{{ c.nombre_categoria }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="caja p-0" style="overflow-x:auto">
+  <table class="table tabla">
+    <thead>
+      <tr>
+        <th>Producto</th>
+        <th>Categoría</th>
+        <th>Ubicación</th>
+        <th>Stock</th>
+        {% if es_admin %}<th>P. compra</th>{% endif %}
+        <th>P. venta</th>
+        {% if es_admin %}<th class="text-end">Acciones</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody id="cuerpo"></tbody>
+  </table>
+</div>
+<small id="conteo" class="text-muted d-block mt-2"></small>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CONF = document.getElementById('config').dataset;
+const ES_ADMIN = CONF.admin === 'true';
+const CSRF = CONF.csrf;
+const URL_API = CONF.api;
+const URL_EDITAR = CONF.editar;
+const URL_ELIMINAR = CONF.eliminar;
+
+const cuerpo = document.getElementById('cuerpo');
+const conteo = document.getElementById('conteo');
+const campoBuscar = document.getElementById('buscar');
+const campoCategoria = document.getElementById('categoria');
+let temporizador = null;
+
+function esc(texto){
+  const d = document.createElement('div');
+  d.textContent = texto;
+  return d.innerHTML;
+}
+function dinero(n){ return '$' + Number(n).toFixed(2); }
+
+function etiquetaStock(p){
+  let clase = 'success', texto = p.stock;
+  if (p.stock <= 0){ clase = 'danger'; texto = p.stock + ' · Agotado'; }
+  else if (p.stock <= p.stock_minimo){ clase = 'warning text-dark'; texto = p.stock + ' · Bajo'; }
+  return '<span class="badge bg-' + clase + '">' + texto + '</span>';
+}
+
+function cargar(){
+  const url = URL_API + '?q=' + encodeURIComponent(campoBuscar.value.trim()) +
+              '&categoria=' + encodeURIComponent(campoCategoria.value);
+  fetch(url).then(r => r.json()).then(data => {
+    const columnas = ES_ADMIN ? 7 : 5;
+    if (data.productos.length === 0){
+      cuerpo.innerHTML = '<tr><td colspan="' + columnas + '" class="text-center text-muted py-4">No se encontraron productos.</td></tr>';
+      conteo.textContent = '';
+      return;
+    }
+    let html = '';
+    data.productos.forEach(p => {
+      html += '<tr>' +
+        '<td class="fw-semibold">' + esc(p.nombre) + '</td>' +
+        '<td>' + esc(p.categoria) + '</td>' +
+        '<td>' + esc(p.ubicacion) + '</td>' +
+        '<td>' + etiquetaStock(p) + '</td>';
+      if (ES_ADMIN){ html += '<td>' + dinero(p.precio_compra) + '</td>'; }
+      html += '<td>' + dinero(p.precio_venta) + '</td>';
+      if (ES_ADMIN){
+        html += '<td class="text-end text-nowrap">' +
+          '<a href="' + URL_EDITAR.replace('/0/', '/' + p.id + '/') + '" class="btn btn-sm btn-outline-secondary me-1" title="Editar"><i class="bi bi-pencil"></i></a>' +
+          '<form method="post" action="' + URL_ELIMINAR.replace('/0/', '/' + p.id + '/') + '" class="d-inline eliminar">' +
+          '<input type="hidden" name="csrfmiddlewaretoken" value="' + CSRF + '">' +
+          '<button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button></form></td>';
+      }
+      html += '</tr>';
+    });
+    cuerpo.innerHTML = html;
+    conteo.textContent = 'Mostrando ' + data.productos.length + ' de ' + data.total + ' productos';
+
+    cuerpo.querySelectorAll('form.eliminar').forEach(f => {
+      f.addEventListener('submit', e => {
+        if (!confirm('¿Eliminar este producto? Esta acción no se puede deshacer.')) e.preventDefault();
+      });
+    });
+  }).catch(() => {
+    cuerpo.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">No se pudieron cargar los productos.</td></tr>';
+  });
+}
+
+campoBuscar.addEventListener('input', () => {
+  clearTimeout(temporizador);
+  temporizador = setTimeout(cargar, 250);
+});
+campoCategoria.addEventListener('change', cargar);
+cargar();
+</script>
+{% endblock %}

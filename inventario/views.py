@@ -1,23 +1,37 @@
-from django.shortcuts import render, redirect
-from django.contrib.auth.hashers import check_password, make_password
-from .models import Empleados
-from django.http import JsonResponse
+import hmac
+import logging
+import re
+import secrets
+import time
+from functools import wraps
+from smtplib import SMTPException
+
 from django.conf import settings
+from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
+from django.db.models import DecimalField, F, Sum
+from django.http import JsonResponse
+from django.shortcuts import redirect, render
+from django.utils import timezone
 from requests.exceptions import RequestException
 from twilio.base.exceptions import TwilioException
 from twilio.rest import Client
-import logging
-import secrets
-import re
-import hmac
-from smtplib import SMTPException
-import time
-from django.db.models import Sum, F, DecimalField
-from django.utils import timezone
-from .models import Productos, Ventas, DetalleVenta, OrdenesCompra
+from django import forms
+from django.contrib import messages
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from .models import Categorias, DetalleCompra, RegistrosMerma, Ubicaciones
+from django.core.validators import validate_email
+from .models import Proveedores, ProductoProveedo
+
+from .models import DetalleVenta, Empleados, OrdenesCompra, Productos, Ventas
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------
+# UTILIDADES
+# ---------------------------------------------------------------
 def validar_password(p):
     faltan = []
     if len(p) < 8:
@@ -38,7 +52,6 @@ def validar_password(p):
 def _telefono_e164(telefono):
     digitos = re.sub(r'\D', '', telefono)
     codigo_pais = re.sub(r'\D', '', settings.TWILIO_DEFAULT_COUNTRY_CODE)
-
     if len(digitos) == 8:
         return f'+{codigo_pais}{digitos}'
     if len(digitos) == len(codigo_pais) + 8 and digitos.startswith(codigo_pais):
@@ -51,21 +64,57 @@ def _buscar_empleado_por_telefono(telefono):
     codigo_pais = re.sub(r'\D', '', settings.TWILIO_DEFAULT_COUNTRY_CODE)
     if digitos.startswith(codigo_pais) and len(digitos) == len(codigo_pais) + 8:
         digitos = digitos[len(codigo_pais):]
-
     opciones = {telefono.strip(), digitos}
     if len(digitos) == 8:
         opciones.add(f'{digitos[:4]}-{digitos[4:]}')
         opciones.add(f'+{codigo_pais}{digitos}')
     return Empleados.objects.filter(telefono__in=opciones).first()
 
+
+# ---------------------------------------------------------------
+# PERMISOS
+# ---------------------------------------------------------------
+def login_requerido(vista):
+    """Exige sesión iniciada. Deja al empleado en request.empleado."""
+    @wraps(vista)
+    def envoltura(request, *args, **kwargs):
+        emp = Empleados.objects.filter(id_empleado=request.session.get('empleado_id')).first()
+        if emp is None or not emp.activo:
+            request.session.flush()
+            return redirect('login')
+        request.empleado = emp
+        return vista(request, *args, **kwargs)
+    return envoltura
+
+
+def solo_admin(vista):
+    """Exige sesión iniciada y rol Administrador."""
+    @login_requerido
+    @wraps(vista)
+    def envoltura(request, *args, **kwargs):
+        if request.empleado.rol != 'Administrador':
+            return render(request, 'inventario/sin_permiso.html', status=403)
+        return vista(request, *args, **kwargs)
+    return envoltura
+
+
+# ---------------------------------------------------------------
+# PÁGINAS PÚBLICAS, REGISTRO Y LOGIN
+# ---------------------------------------------------------------
 def inicio(request):
     return render(request, 'inventario/inicio.html')
+
+
+def terminos(request):
+    return render(request, 'inventario/terminos.html')
+
 
 def registro(request):
     if request.method == 'POST':
         datos = request.POST.copy()
         datos['password'] = ''
         datos['password2'] = ''
+        datos['codigo_admin'] = ''
 
         def volver(error, limpiar=None):
             if limpiar:
@@ -84,9 +133,15 @@ def registro(request):
         apellido = request.POST.get('apellido', '').strip()
         correo = request.POST.get('correo', '').strip().lower()
         usuario = request.POST.get('usuario', '').strip().lower()
+
         rol = request.POST.get('rol', 'Empleado')
         if rol not in ('Administrador', 'Empleado'):
             rol = 'Empleado'
+
+        if rol == 'Administrador':
+            codigo_admin = request.POST.get('codigo_admin', '')
+            if not hmac.compare_digest(codigo_admin.encode(), settings.CODIGO_ADMIN.encode()):
+                return volver('El código de administrador no es correcto.')
 
         if Empleados.objects.filter(correo=correo).exists():
             return volver(f'El correo {correo} ya está registrado.', limpiar='correo')
@@ -112,7 +167,7 @@ def registro(request):
             direccion=request.POST.get('direccion'), correo=correo,
             telefono=request.POST.get('telefono'), usuario=usuario_final,
             password=make_password(password),
-            rol=rol
+            rol=rol,
         )
         return redirect('login')
     return render(request, 'inventario/registro.html', {'datos': {}})
@@ -157,11 +212,24 @@ def login_view(request):
                     raise ValueError('Contraseña incorrecta')
                 emp.password = make_password(password)
                 emp.save(update_fields=['password'])
+            if not emp.activo:
+                return render(request, 'inventario/login.html', {
+                    'error': 'Tu cuenta está desactivada. Habla con el administrador.'})
             request.session['empleado_id'] = emp.id_empleado
             return redirect('dashboard')
         except ValueError:
             return render(request, 'inventario/login.html', {'error': 'Usuario o contraseña incorrectos'})
     return render(request, 'inventario/login.html')
+
+
+def logout_view(request):
+    request.session.flush()
+    return redirect('login')
+
+
+# ---------------------------------------------------------------
+# RECUPERAR CONTRASEÑA
+# ---------------------------------------------------------------
 def recuperar(request):
     if request.method == 'POST':
         tipo = request.POST.get('tipo')
@@ -198,7 +266,6 @@ def recuperar(request):
 
         mensaje = f'Tu código para restablecer la contraseña es {codigo}. Vence en 5 minutos.'
 
-        # Envío por correo (principal)
         try:
             enviado = send_mail(
                 'Código para restablecer tu contraseña',
@@ -219,7 +286,7 @@ def recuperar(request):
                 'active_tab': tab,
             })
 
-        # Envío por SMS (opcional: solo si Twilio está configurado)
+        # SMS opcional: solo si Twilio está configurado
         telefono_destino = _telefono_e164(empleado.telefono)
         if telefono_destino and all((settings.TWILIO_ACCOUNT_SID,
                                      settings.TWILIO_AUTH_TOKEN,
@@ -237,16 +304,16 @@ def recuperar(request):
 
     return render(request, 'inventario/recuperar.html', {'active_tab': 'correo'})
 
+
 def verificar_codigo(request):
     codigo_sesion = request.session.get('codigo_recuperacion')
     empleado_id = request.session.get('empleado_recuperar_id')
     if not codigo_sesion or not empleado_id:
         return redirect('recuperar')
     if int(time.time()) > request.session.get('codigo_recuperacion_expira', 0):
-        request.session.pop('codigo_recuperacion', None)
-        request.session.pop('empleado_recuperar_id', None)
-        request.session.pop('codigo_recuperacion_expira', None)
-        request.session.pop('correo_recuperacion_error', None)
+        for clave in ('codigo_recuperacion', 'empleado_recuperar_id',
+                      'codigo_recuperacion_expira', 'correo_recuperacion_error'):
+            request.session.pop(clave, None)
         return render(request, 'inventario/recuperar.html', {
             'error': 'El código venció. Solicita uno nuevo.',
             'active_tab': 'correo',
@@ -255,33 +322,28 @@ def verificar_codigo(request):
     if request.method == 'POST':
         codigo_ingresado = request.POST.get('codigo', '').strip()
         if hmac.compare_digest(codigo_ingresado, codigo_sesion):
-            request.session.pop('codigo_recuperacion', None)
-            request.session.pop('codigo_recuperacion_expira', None)
-            request.session.pop('intentos_codigo_recuperacion', None)
-            request.session.pop('correo_recuperacion_error', None)
+            for clave in ('codigo_recuperacion', 'codigo_recuperacion_expira',
+                          'intentos_codigo_recuperacion', 'correo_recuperacion_error'):
+                request.session.pop(clave, None)
             request.session['recuperacion_verificada'] = True
             return redirect('restablecer')
 
         intentos = request.session.get('intentos_codigo_recuperacion', 0) + 1
         request.session['intentos_codigo_recuperacion'] = intentos
         if intentos >= 5:
-            request.session.pop('codigo_recuperacion', None)
-            request.session.pop('empleado_recuperar_id', None)
-            request.session.pop('codigo_recuperacion_expira', None)
-            request.session.pop('intentos_codigo_recuperacion', None)
-            request.session.pop('correo_recuperacion_error', None)
+            for clave in ('codigo_recuperacion', 'empleado_recuperar_id',
+                          'codigo_recuperacion_expira', 'intentos_codigo_recuperacion',
+                          'correo_recuperacion_error'):
+                request.session.pop(clave, None)
             return render(request, 'inventario/recuperar.html', {
                 'error': 'Se agotaron los intentos. Solicita un código nuevo.',
                 'active_tab': 'correo',
             })
         return render(request, 'inventario/verificar.html', {
             'error': 'El código ingresado no es válido.',
-            'correo_error': request.session.get('correo_recuperacion_error', False),
         })
 
-    return render(request, 'inventario/verificar.html', {
-        'correo_error': request.session.get('correo_recuperacion_error', False),
-    })
+    return render(request, 'inventario/verificar.html')
 
 
 def restablecer(request):
@@ -301,18 +363,12 @@ def restablecer(request):
         if password != password2:
             return render(request, 'inventario/restablecer.html', {
                 'error': 'Las contraseñas no coinciden.',
-            
-            })
-            
-        if len(password) < 8:
-            return render(request, 'inventario/restablecer.html', {
-                'error': 'La contraseña debe tener al menos 8 caracteres.',
             })
 
         error_pw = validar_password(password)
         if error_pw:
             return render(request, 'inventario/restablecer.html', {'error': error_pw})
-        
+
         empleado.password = make_password(password)
         empleado.save(update_fields=['password'])
         request.session.pop('empleado_recuperar_id', None)
@@ -321,35 +377,483 @@ def restablecer(request):
         return redirect('login')
 
     return render(request, 'inventario/restablecer.html')
-def dashboard(request):
-    emp_id = request.session.get('empleado_id')
-    if not emp_id:
-        return redirect('login')
-    emp = Empleados.objects.filter(id_empleado=emp_id).first()
-    if emp is None:
-        request.session.flush()
-        return redirect('login')
 
+
+@login_requerido
+def dashboard(request):
     hoy = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
     ventas_hoy = Ventas.objects.filter(fecha_venta__gte=hoy)
     total_hoy = DetalleVenta.objects.filter(id_venta__fecha_venta__gte=hoy).aggregate(
         total=Sum(F('cantidad') * F('precio_venta'), output_field=DecimalField())
     )['total'] or 0
 
-    return render(request, 'inventario/dashboard.html', {
-        'nombre': emp.nombre,        'rol': emp.rol,
+    return render(request, 'inventario/dashboard.html', contexto(
+        request, 'inicio',
+        total_productos=Productos.objects.count(),
+        ventas_hoy=ventas_hoy.count(),
+        total_hoy=total_hoy,
+        total_ordenes=OrdenesCompra.objects.count(),
+        alertas=0,
+        actividad=Ventas.objects.order_by('-fecha_venta')[:5],
+    ))
+
+
+def contexto(request, activo='', **extra):
+    emp = request.empleado
+    datos = {
+        'nombre': emp.nombre,
+        'rol': emp.rol,
+        'es_admin': emp.rol == 'Administrador',
         'inicial': emp.nombre[:1].upper(),
-        'total_productos': Productos.objects.count(),
-        'ventas_hoy': ventas_hoy.count(),
-        'total_hoy': total_hoy,
-        'total_ordenes': OrdenesCompra.objects.count(),
+        'activo': activo,
         'alertas': 0,
-        'actividad': Ventas.objects.order_by('-fecha_venta')[:5],
-    })
+    }
+    datos.update(extra)
+    return datos
 
-def logout_view(request):
-    request.session.flush()
-    return redirect('login')
 
-def terminos(request):
-    return render(request, 'inventario/terminos.html')
+class ProductoForm(forms.ModelForm):
+    pasillo = forms.CharField(
+        required=False, max_length=50, label='Pasillo',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 2'}))
+    estante = forms.CharField(
+        required=False, max_length=50, label='Estante',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: B'}))
+
+    class Meta:
+        model = Productos
+        fields = ['nombre_producto', 'id_categoria', 'precio_compra',
+                  'precio_producto', 'stock', 'stock_minimo']
+        labels = {
+            'nombre_producto': 'Nombre y medida del producto',
+            'id_categoria': 'Categoría',
+            'precio_compra': 'Precio de compra (USD)',
+            'precio_producto': 'Precio de venta (USD)',
+            'stock': 'Stock actual',
+            'stock_minimo': 'Stock mínimo (para alertas)',
+        }
+        widgets = {
+            'nombre_producto': forms.TextInput(attrs={'class': 'form-control'}),
+            'id_categoria': forms.Select(attrs={'class': 'form-select'}),
+            'precio_compra': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'precio_producto': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'stock_minimo': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        cat = self.fields['id_categoria']
+        cat.queryset = Categorias.objects.order_by('nombre_categoria')
+        cat.label_from_instance = lambda c: c.nombre_categoria
+        cat.empty_label = 'Selecciona una categoría'
+        cat.required = True
+
+    def clean_nombre_producto(self):
+        nombre = self.cleaned_data['nombre_producto'].strip()
+        repetido = Productos.objects.filter(nombre_producto__iexact=nombre)
+        if self.instance.pk:
+            repetido = repetido.exclude(pk=self.instance.pk)
+        if repetido.exists():
+            raise forms.ValidationError('Ya existe un producto con ese nombre.')
+        return nombre
+
+    def clean(self):
+        datos = super().clean()
+        for campo in ('precio_compra', 'precio_producto', 'stock', 'stock_minimo'):
+            valor = datos.get(campo)
+            if valor is not None and valor < 0:
+                self.add_error(campo, 'No puede ser negativo.')
+        if bool(datos.get('pasillo')) != bool(datos.get('estante')):
+            self.add_error('estante', 'Escribe pasillo y estante, o deja los dos vacíos.')
+        return datos
+
+
+@login_requerido
+def productos_lista(request):
+    return render(request, 'inventario/productos_lista.html', contexto(
+        request, 'productos',
+        categorias=Categorias.objects.order_by('nombre_categoria'),
+    ))
+
+
+@login_requerido
+def api_productos(request):
+    q = request.GET.get('q', '').strip()
+    cat = request.GET.get('categoria', '')
+    es_admin = request.empleado.rol == 'Administrador'
+
+    qs = Productos.objects.select_related('id_categoria', 'id_ubicacion').order_by('nombre_producto')
+    if q:
+        qs = qs.filter(Q(nombre_producto__icontains=q) |
+                       Q(id_categoria__nombre_categoria__icontains=q))
+    if cat.isdigit():
+        qs = qs.filter(id_categoria_id=int(cat))
+
+    total = qs.count()
+    items = []
+    for p in qs[:100]:
+        item = {
+            'id': p.id_producto,
+            'nombre': p.nombre_producto,
+            'categoria': p.id_categoria.nombre_categoria if p.id_categoria else '—',
+            'ubicacion': (f'Pasillo {p.id_ubicacion.pasillo} · Estante {p.id_ubicacion.estante}'
+                          if p.id_ubicacion else '—'),
+            'stock': p.stock,
+            'stock_minimo': p.stock_minimo,
+            'precio_venta': float(p.precio_producto),
+        }
+        if es_admin:
+            item['precio_compra'] = float(p.precio_compra)
+        items.append(item)
+
+    return JsonResponse({'productos': items, 'total': total})
+
+
+@solo_admin
+def producto_form(request, pk=None):
+    producto = get_object_or_404(Productos, pk=pk) if pk else None
+
+    if request.method == 'POST':
+        form = ProductoForm(request.POST, instance=producto)
+        if form.is_valid():
+            p = form.save(commit=False)
+            pasillo = form.cleaned_data['pasillo']
+            estante = form.cleaned_data['estante']
+            if pasillo and estante:
+                p.id_ubicacion = (Ubicaciones.objects.filter(pasillo=pasillo, estante=estante).first()
+                                  or Ubicaciones.objects.create(pasillo=pasillo, estante=estante))
+            else:
+                p.id_ubicacion = None
+            p.save()
+            messages.success(request, 'Producto guardado correctamente.')
+            return redirect('productos')
+    else:
+        inicial = {}
+        if producto and producto.id_ubicacion:
+            inicial = {'pasillo': producto.id_ubicacion.pasillo,
+                       'estante': producto.id_ubicacion.estante}
+        form = ProductoForm(instance=producto, initial=inicial)
+
+    return render(request, 'inventario/producto_form.html', contexto(
+        request, 'productos', form=form, producto=producto))
+
+
+@solo_admin
+def producto_eliminar(request, pk):
+    p = get_object_or_404(Productos, pk=pk)
+    if request.method == 'POST':
+        if (DetalleVenta.objects.filter(id_producto=p).exists()
+                or DetalleCompra.objects.filter(id_producto=p).exists()
+                or RegistrosMerma.objects.filter(id_producto=p).exists()):
+            messages.error(request, 'No se puede eliminar: el producto tiene ventas, compras o mermas registradas. '
+                                    'Puedes dejar su stock en 0.')
+        else:
+            nombre = p.nombre_producto
+            p.delete()
+            messages.success(request, f'Producto "{nombre}" eliminado.')
+    return redirect('productos')
+
+
+class EmpleadoForm(forms.ModelForm):
+    rol = forms.ChoiceField(
+        choices=[('Empleado', 'Empleado'), ('Administrador', 'Administrador')],
+        label='Rol', widget=forms.Select(attrs={'class': 'form-select'}))
+    password1 = forms.CharField(
+        required=False, label='Contraseña',
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'new-password'}))
+    password2 = forms.CharField(
+        required=False, label='Confirmar contraseña',
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'new-password'}))
+
+    field_order = ['nombre', 'apellido', 'correo', 'telefono', 'direccion',
+                   'usuario', 'rol', 'password1', 'password2', 'activo']
+
+    class Meta:
+        model = Empleados
+        fields = ['nombre', 'apellido', 'correo', 'telefono', 'direccion',
+                  'usuario', 'rol', 'activo']
+        labels = {'nombre': 'Nombre', 'apellido': 'Apellido', 'correo': 'Correo',
+                  'telefono': 'Teléfono', 'direccion': 'Dirección', 'usuario': 'Usuario'}
+        widgets = {
+            'nombre': forms.TextInput(attrs={'class': 'form-control'}),
+            'apellido': forms.TextInput(attrs={'class': 'form-control'}),
+            'correo': forms.TextInput(attrs={'class': 'form-control', 'autocomplete': 'off'}),
+            'telefono': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '0000-0000'}),
+            'direccion': forms.TextInput(attrs={'class': 'form-control'}),
+            'usuario': forms.TextInput(attrs={'class': 'form-control', 'autocapitalize': 'none'}),
+            'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def __init__(self, *args, actual=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.actual = actual
+
+    def clean_correo(self):
+        correo = self.cleaned_data['correo'].strip().lower()
+        validate_email(correo)
+        repetido = Empleados.objects.filter(correo__iexact=correo)
+        if self.instance.pk:
+            repetido = repetido.exclude(pk=self.instance.pk)
+        if repetido.exists():
+            raise forms.ValidationError('Ese correo ya está registrado.')
+        return correo
+
+    def clean_usuario(self):
+        usuario = self.cleaned_data['usuario'].strip()
+        if self.instance.pk and usuario == self.instance.usuario:
+            return usuario
+        usuario = usuario.lower()
+        if not re.fullmatch(r'[a-z0-9._]{3,30}', usuario):
+            raise forms.ValidationError('Solo letras, números, punto y guion bajo (mínimo 3).')
+        repetido = Empleados.objects.filter(usuario=usuario)
+        if self.instance.pk:
+            repetido = repetido.exclude(pk=self.instance.pk)
+        if repetido.exists():
+            raise forms.ValidationError('Ese usuario ya está en uso.')
+        return usuario
+
+    def clean_telefono(self):
+        telefono = self.cleaned_data['telefono'].strip()
+        if len(re.sub(r'\D', '', telefono)) != 8:
+            raise forms.ValidationError('El teléfono debe tener 8 dígitos.')
+        return telefono
+
+    def clean(self):
+        datos = super().clean()
+        p1 = datos.get('password1', '')
+        p2 = datos.get('password2', '')
+        creando = not self.instance.pk
+
+        if creando and not p1:
+            self.add_error('password1', 'La contraseña es obligatoria.')
+        elif p1 or p2:
+            if p1 != p2:
+                self.add_error('password2', 'Las contraseñas no coinciden.')
+            else:
+                error = validar_password(p1)
+                if error:
+                    self.add_error('password1', error)
+
+        if self.instance.pk and self.actual and self.instance.pk == self.actual.pk:
+            if datos.get('rol') != 'Administrador':
+                self.add_error('rol', 'No puedes quitarte el rol de administrador a ti misma.')
+            if not datos.get('activo'):
+                self.add_error('activo', 'No puedes desactivar tu propia cuenta.')
+        return datos
+
+    def save(self, commit=True):
+        emp = super().save(commit=False)
+        p1 = self.cleaned_data.get('password1')
+        if p1:
+            emp.password = make_password(p1)
+        if commit:
+            emp.save()
+        return emp
+
+
+@solo_admin
+def empleados_lista(request):
+    q = request.GET.get('q', '').strip()
+    qs = Empleados.objects.order_by('nombre', 'apellido')
+    if q:
+        qs = qs.filter(Q(nombre__icontains=q) | Q(apellido__icontains=q) |
+                       Q(usuario__icontains=q) | Q(correo__icontains=q))
+    return render(request, 'inventario/empleados_lista.html', contexto(
+        request, 'empleados', empleados=qs, q=q, yo=request.empleado.id_empleado))
+
+
+@solo_admin
+def empleado_form(request, pk=None):
+    empleado = get_object_or_404(Empleados, pk=pk) if pk else None
+    if request.method == 'POST':
+        form = EmpleadoForm(request.POST, instance=empleado, actual=request.empleado)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Empleado guardado correctamente.')
+            return redirect('empleados')
+    else:
+        form = EmpleadoForm(instance=empleado, actual=request.empleado)
+    return render(request, 'inventario/empleado_form.html', contexto(
+        request, 'empleados', form=form, empleado=empleado))
+
+
+@solo_admin
+def empleado_estado(request, pk):
+    emp = get_object_or_404(Empleados, pk=pk)
+    if request.method == 'POST':
+        if emp.pk == request.empleado.pk:
+            messages.error(request, 'No puedes desactivar tu propia cuenta.')
+        else:
+            emp.activo = not emp.activo
+            emp.save(update_fields=['activo'])
+            messages.success(request, f'{emp.nombre} ahora está {"activo" if emp.activo else "inactivo"}.')
+    return redirect('empleados')
+
+
+@solo_admin
+def empleado_eliminar(request, pk):
+    emp = get_object_or_404(Empleados, pk=pk)
+    if request.method == 'POST':
+        if emp.pk == request.empleado.pk:
+            messages.error(request, 'No puedes eliminar tu propia cuenta.')
+        elif Ventas.objects.filter(id_empleado=emp).exists():
+            messages.error(request, 'No se puede eliminar: tiene ventas registradas. Mejor desactívalo.')
+        else:
+            nombre = emp.nombre
+            emp.delete()
+            messages.success(request, f'Empleado "{nombre}" eliminado.')
+    return redirect('empleados')
+
+# ---------------------------------------------------------------
+# PERFIL (cada persona maneja su propia cuenta)
+# ---------------------------------------------------------------
+class PerfilForm(forms.ModelForm):
+    class Meta:
+        model = Empleados
+        fields = ['nombre', 'apellido', 'correo', 'telefono', 'direccion']
+        labels = {'nombre': 'Nombre', 'apellido': 'Apellido', 'correo': 'Correo',
+                  'telefono': 'Teléfono', 'direccion': 'Dirección'}
+        widgets = {
+            'nombre': forms.TextInput(attrs={'class': 'form-control'}),
+            'apellido': forms.TextInput(attrs={'class': 'form-control'}),
+            'correo': forms.TextInput(attrs={'class': 'form-control', 'autocomplete': 'off'}),
+            'telefono': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '0000-0000'}),
+            'direccion': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+
+    def clean_correo(self):
+        correo = self.cleaned_data['correo'].strip().lower()
+        validate_email(correo)
+        if Empleados.objects.filter(correo__iexact=correo).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError('Ese correo ya está registrado.')
+        return correo
+
+    def clean_telefono(self):
+        telefono = self.cleaned_data['telefono'].strip()
+        if len(re.sub(r'\D', '', telefono)) != 8:
+            raise forms.ValidationError('El teléfono debe tener 8 dígitos.')
+        return telefono
+
+
+@login_requerido
+def perfil(request):
+    emp = request.empleado
+    form = PerfilForm(instance=emp)
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+
+        if accion == 'datos':
+            form = PerfilForm(request.POST, instance=emp)
+            if form.is_valid():
+                form.save()
+                messages.success(request, 'Tus datos se guardaron correctamente.')
+                return redirect('perfil')
+
+        elif accion == 'password':
+            actual = request.POST.get('actual', '')
+            p1 = request.POST.get('password1', '')
+            p2 = request.POST.get('password2', '')
+            if not check_password(actual, emp.password):
+                messages.error(request, 'La contraseña actual no es correcta.')
+            elif p1 != p2:
+                messages.error(request, 'Las contraseñas nuevas no coinciden.')
+            else:
+                error_pw = validar_password(p1)
+                if error_pw:
+                    messages.error(request, error_pw)
+                else:
+                    emp.password = make_password(p1)
+                    emp.save(update_fields=['password'])
+                    messages.success(request, 'Tu contraseña se cambió correctamente.')
+            return redirect('perfil')
+
+        elif accion == 'eliminar':
+            clave = request.POST.get('clave', '')
+            if not check_password(clave, emp.password):
+                messages.error(request, 'La contraseña no es correcta. Tu cuenta no se eliminó.')
+            elif (emp.rol == 'Administrador'
+                  and not Empleados.objects.filter(rol='Administrador', activo=True)
+                                           .exclude(pk=emp.pk).exists()):
+                messages.error(request, 'Eres la única administradora activa. Crea o asigna a otro administrador '
+                                        'antes de eliminar tu cuenta.')
+            elif Ventas.objects.filter(id_empleado=emp).exists():
+                messages.error(request, 'No puedes eliminar tu cuenta porque tiene ventas registradas. '
+                                        'Pide a otro administrador que la desactive.')
+            else:
+                emp.delete()
+                request.session.flush()
+                return redirect('login')
+            return redirect('perfil')
+
+    return render(request, 'inventario/perfil.html', contexto(
+        request, 'perfil', form=form, empleado=emp))
+
+# ---------------------------------------------------------------
+# PROVEEDORES (solo administrador)
+# ---------------------------------------------------------------
+class ProveedorForm(forms.ModelForm):
+    class Meta:
+        model = Proveedores
+        fields = ['nombre_proveedor', 'contacto_proveedor']
+        labels = {
+            'nombre_proveedor': 'Nombre del proveedor',
+            'contacto_proveedor': 'Contacto (teléfono o correo)',
+        }
+        widgets = {
+            'nombre_proveedor': forms.TextInput(attrs={'class': 'form-control'}),
+            'contacto_proveedor': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+
+    def clean_nombre_proveedor(self):
+        nombre = self.cleaned_data['nombre_proveedor'].strip()
+        repetido = Proveedores.objects.filter(nombre_proveedor__iexact=nombre)
+        if self.instance.pk:
+            repetido = repetido.exclude(pk=self.instance.pk)
+        if repetido.exists():
+            raise forms.ValidationError('Ya existe un proveedor con ese nombre.')
+        return nombre
+
+    def clean_contacto_proveedor(self):
+        return self.cleaned_data['contacto_proveedor'].strip()
+
+
+@solo_admin
+def proveedores_lista(request):
+    q = request.GET.get('q', '').strip()
+    qs = Proveedores.objects.order_by('nombre_proveedor')
+    if q:
+        qs = qs.filter(Q(nombre_proveedor__icontains=q) | Q(contacto_proveedor__icontains=q))
+    return render(request, 'inventario/proveedores_lista.html', contexto(
+        request, 'proveedores', proveedores=qs, q=q))
+
+
+@solo_admin
+def proveedor_form(request, pk=None):
+    proveedor = get_object_or_404(Proveedores, pk=pk) if pk else None
+    if request.method == 'POST':
+        form = ProveedorForm(request.POST, instance=proveedor)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Proveedor guardado correctamente.')
+            return redirect('proveedores')
+    else:
+        form = ProveedorForm(instance=proveedor)
+    return render(request, 'inventario/proveedor_form.html', contexto(
+        request, 'proveedores', form=form, proveedor=proveedor))
+
+
+@solo_admin
+def proveedor_eliminar(request, pk):
+    prov = get_object_or_404(Proveedores, pk=pk)
+    if request.method == 'POST':
+        if (OrdenesCompra.objects.filter(id_proveedor=prov).exists()
+                or ProductoProveedo.objects.filter(id_proveedor=prov).exists()):
+            messages.error(request, 'No se puede eliminar: el proveedor tiene órdenes de compra '
+                                    'o productos asociados.')
+        else:
+            nombre = prov.nombre_proveedor
+            prov.delete()
+            messages.success(request, f'Proveedor "{nombre}" eliminado.')
+    return redirect('proveedores')

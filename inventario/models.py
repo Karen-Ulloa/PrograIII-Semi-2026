@@ -43,6 +43,7 @@ class Empleados(models.Model):
     usuario = models.CharField(max_length=50, unique=True)
     password = models.CharField(max_length=255)
     rol = models.CharField(max_length=20, default='Empleado')
+    activo = models.BooleanField(default=True)
     class Meta:
         db_table = 'empleados'
 
@@ -59,6 +60,9 @@ class Productos(models.Model):
     id_categoria = models.ForeignKey(Categorias, on_delete=models.SET_NULL, null=True, db_column='id_categoria')
     id_ubicacion = models.ForeignKey(Ubicaciones, on_delete=models.SET_NULL, null=True, db_column='id_ubicacion')
     imagen = models.CharField(max_length=255, null=True, blank=True)
+    precio_compra = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    stock = models.IntegerField(default=0)
+    stock_minimo = models.IntegerField(default=5)
     class Meta:
         db_table = 'productos'
 

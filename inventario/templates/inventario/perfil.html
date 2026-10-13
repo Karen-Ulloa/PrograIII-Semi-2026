@@ -1,0 +1,84 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Perfil - CampesinoStock{% endblock %}
+{% block encabezado %}Perfil{% endblock %}
+
+{% block extra_css %}
+<style>
+.av-xl{width:72px; height:72px; border-radius:50%; background:var(--vino); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:30px; flex-shrink:0}
+.zona-peligro{border:1px solid #e3b5b5; background:#fdf5f5}
+</style>
+{% endblock %}
+
+{% block contenido %}
+<div style="max-width:760px; margin:0 auto">
+
+  <div class="caja d-flex align-items-center gap-3 mb-3">
+    <div class="av-xl">{{ inicial }}</div>
+    <div>
+      <h2 class="m-0" style="font-size:32px">{{ empleado.nombre }} {{ empleado.apellido }}</h2>
+      <span class="text-muted">{{ rol }} · {{ empleado.usuario }}</span>
+    </div>
+  </div>
+
+  <div class="caja mb-3">
+    <h3 style="font-size:22px">Mis datos</h3>
+    <form method="post" autocomplete="off">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="datos">
+      {% if form.non_field_errors %}<div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="row g-3">
+        {% for campo in form %}
+        <div class="{% if campo.name == 'direccion' %}col-12{% else %}col-md-6{% endif %}">
+          <label class="small fw-bold" for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+          {{ campo }}
+          {% for e in campo.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      <button class="btn btn-vino mt-3">Guardar cambios</button>
+    </form>
+  </div>
+
+  <div class="caja mb-3">
+    <h3 style="font-size:22px">Cambiar contraseña</h3>
+    <form method="post" autocomplete="off">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="password">
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="small fw-bold" for="actual">Contraseña actual</label>
+          <input type="password" id="actual" name="actual" class="form-control" required autocomplete="current-password">
+        </div>
+        <div class="col-md-6">
+          <label class="small fw-bold" for="password1">Contraseña nueva</label>
+          <input type="password" id="password1" name="password1" class="form-control" required autocomplete="new-password">
+        </div>
+        <div class="col-md-6">
+          <label class="small fw-bold" for="password2">Confirmar contraseña nueva</label>
+          <input type="password" id="password2" name="password2" class="form-control" required autocomplete="new-password">
+        </div>
+      </div>
+      <small class="text-muted d-block mt-2">Mínimo 8 caracteres, con mayúscula, minúscula, número y símbolo.</small>
+      <button class="btn btn-vino mt-3">Cambiar contraseña</button>
+    </form>
+  </div>
+
+  <div class="caja zona-peligro mb-3">
+    <h3 style="font-size:22px; color:#a32020">Eliminar mi cuenta</h3>
+    <p class="small text-muted mb-2">Escribe tu contraseña para confirmar.</p>
+    <form method="post" autocomplete="off" onsubmit="return confirm('¿Seguro que quieres eliminar tu cuenta? No se puede deshacer.')">
+      {% csrf_token %}
+      <input type="hidden" name="accion" value="eliminar">
+      <div class="row g-2">
+        <div class="col-md-8">
+          <input type="password" name="clave" class="form-control" placeholder="Tu contraseña" required autocomplete="current-password">
+        </div>
+        <div class="col-md-4">
+          <button class="btn btn-danger w-100" style="border-radius:30px">Eliminar mi cuenta</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

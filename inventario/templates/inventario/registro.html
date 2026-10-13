@@ -15,6 +15,7 @@ body{margin:0; background:#fdfbf7}
 .campo{position:relative}.campo i{position:absolute; right:14px; top:50%; transform:translateY(-50%); cursor:pointer; color:#777}
 .form-control{border-radius:12px; padding:10px}
 .form-control:focus{border-color:#5a1016; box-shadow:0 0 0 .2rem rgba(90,16,22,.15)}
+.form-check-input:checked{background-color:#5a1016; border-color:#5a1016}
 .logo-box{background:white; padding:10px; border-radius:16px}
 .chip{cursor:pointer; background:#5a1016; color:white; padding:5px 12px; border-radius:20px; font-size:12px; border:0}
 </style>
@@ -55,6 +56,11 @@ body{margin:0; background:#fdfbf7}
   <option value="Empleado" {% if datos.rol != 'Administrador' %}selected{% endif %}>Empleado</option>
   <option value="Administrador" {% if datos.rol == 'Administrador' %}selected{% endif %}>Administrador</option>
 </select>
+<div id="caja_codigo_admin" style="display:none">
+  <label class="small fw-bold" for="codigo_admin_input">Código de administrador *</label>
+  <input type="password" id="codigo_admin_input" name="codigo_admin" class="form-control mb-1" autocomplete="off">
+  <small class="text-muted" style="font-size:11px; display:block; margin-bottom:8px">Pídelo al dueño de la agroferretería.</small>
+</div>
 
 <label class="small fw-bold" for="usuario_input">Usuario *</label>
 <input type="text" id="usuario_input" name="usuario" class="form-control mb-1" required autocomplete="username" autocapitalize="none" spellcheck="false" value="{{ datos.usuario }}">
@@ -85,6 +91,13 @@ body{margin:0; background:#fdfbf7}
 </div>
 <small id="coinciden" style="font-size:12px; display:block; margin-bottom:12px"></small>
 
+<div class="form-check mb-3">
+  <input class="form-check-input" type="checkbox" id="acepta" required>
+  <label class="form-check-label small" for="acepta">
+    Acepto los <a href="{% url 'terminos' %}" target="_blank" style="color:#5a1016" class="fw-bold">términos y condiciones</a>
+  </label>
+</div>
+
 <button class="btn btn-vino w-100">Crear cuenta</button>
 </form>
 </div>
@@ -98,6 +111,7 @@ function ver(id, icon){
   else { input.type = 'password'; icon.className = 'bi bi-eye'; }
 }
 
+/* ===== Usuario y sugerencias ===== */
 const nombreInput = document.getElementById('nombre_input');
 const apellidoInput = document.getElementById('apellido_input');
 const usuarioInput = document.getElementById('usuario_input');
@@ -163,6 +177,23 @@ usuarioInput.addEventListener('input', () => {
   clearTimeout(temporizador);
   temporizador = setTimeout(revisarUsuario, 400);
 });
+
+/* Al volver con un error, conserva lo escrito y revisa el usuario */
+if (usuarioInput.value.trim()) { editadoAMano = true; }
+if (nombreInput.value.trim() && apellidoInput.value.trim()) { revisarUsuario(); }
+
+/* ===== Código de administrador ===== */
+const rolInput = document.getElementById('rol_input');
+const cajaCodigo = document.getElementById('caja_codigo_admin');
+const codigoInput = document.getElementById('codigo_admin_input');
+function mostrarCodigo(){
+  const esAdmin = rolInput.value === 'Administrador';
+  cajaCodigo.style.display = esAdmin ? 'block' : 'none';
+  codigoInput.required = esAdmin;
+  if(!esAdmin){ codigoInput.value = ''; }
+}
+rolInput.addEventListener('change', mostrarCodigo);
+mostrarCodigo();
 
 /* ===== Seguridad de la contraseña ===== */
 const p1 = document.getElementById('p1');
@@ -235,9 +266,6 @@ document.querySelector('form').addEventListener('submit', function(e){
     p1.focus();
   }
 });
-/* Al volver con un error, conserva lo escrito y revisa el usuario */
-if (usuarioInput.value.trim()) { editadoAMano = true; }
-if (nombreInput.value.trim() && apellidoInput.value.trim()) { revisarUsuario(); }
 </script>
 </body>
 </html>

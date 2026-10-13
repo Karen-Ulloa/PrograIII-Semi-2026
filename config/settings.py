@@ -143,3 +143,5 @@ TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID', '')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN', '')
 TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER', '')
 TWILIO_DEFAULT_COUNTRY_CODE = os.environ.get('TWILIO_DEFAULT_COUNTRY_CODE', '+503')
+CODIGO_ADMIN = os.environ.get('CODIGO_ADMIN', 'Campesino2026')
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'

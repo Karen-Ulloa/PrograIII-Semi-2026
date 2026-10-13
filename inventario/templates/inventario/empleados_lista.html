@@ -1,0 +1,62 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Empleados - CampesinoStock{% endblock %}
+{% block encabezado %}Empleados{% endblock %}
+
+{% block extra_css %}
+<style>
+.fila-emp{display:flex; align-items:center; gap:14px; padding:14px 16px; border-bottom:1px solid var(--borde); flex-wrap:wrap}
+.fila-emp:last-child{border-bottom:0}
+.av-lg{width:48px; height:48px; border-radius:50%; background:var(--vino); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px; flex-shrink:0}
+.av-lg.inactivo{background:#b7b0aa}
+.estado{font-size:12px; padding:3px 10px; border-radius:6px; white-space:nowrap}
+.estado.on{background:#e3f1e3; color:#2e7d32}
+.estado.off{background:#ece9e4; color:#777}
+.info{flex:1; min-width:160px}
+</style>
+{% endblock %}
+
+{% block contenido %}
+<div style="max-width:900px; margin:0 auto">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h2 class="m-0" style="font-size:34px">Empleados</h2>
+    <a href="{% url 'empleado_nuevo' %}" class="btn btn-vino"><i class="bi bi-plus-lg"></i> Agregar empleado</a>
+  </div>
+
+  <form method="get" class="caja mb-3">
+    <div class="input-group">
+      <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+      <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Buscar por nombre, usuario o correo..." autocomplete="off">
+      <button class="btn btn-vino" style="border-radius:0 10px 10px 0">Buscar</button>
+    </div>
+  </form>
+
+  <div class="caja p-0">
+    {% for e in empleados %}
+    <div class="fila-emp">
+      <div class="av-lg {% if not e.activo %}inactivo{% endif %}">{{ e.nombre|slice:":1"|upper }}</div>
+      <div class="info">
+        <div class="fw-bold">{{ e.nombre }} {{ e.apellido }}{% if e.id_empleado == yo %} <small class="text-muted">(tú)</small>{% endif %}</div>
+        <small class="text-muted">{{ e.rol }} · {{ e.usuario }}</small>
+      </div>
+      <span class="estado {% if e.activo %}on{% else %}off{% endif %}">● {% if e.activo %}Activo{% else %}Inactivo{% endif %}</span>
+
+      <div class="d-flex gap-1">
+        <a href="{% if e.id_empleado == yo %}{% url 'perfil' %}{% else %}{% url 'empleado_editar' e.id_empleado %}{% endif %}" class="btn btn-sm btn-outline-secondary" title="Editar"><i class="bi bi-pencil"></i></a>
+        {% if e.id_empleado != yo %}
+        <form method="post" action="{% url 'empleado_estado' e.id_empleado %}" class="d-inline">
+          {% csrf_token %}
+          <button class="btn btn-sm btn-outline-secondary" title="{% if e.activo %}Desactivar{% else %}Activar{% endif %}"><i class="bi {% if e.activo %}bi-person-dash{% else %}bi-person-check{% endif %}"></i></button>
+        </form>
+        <form method="post" action="{% url 'empleado_eliminar' e.id_empleado %}" class="d-inline" onsubmit="return confirm('¿Eliminar este empleado? Esta acción no se puede deshacer.')">
+          {% csrf_token %}
+          <button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="text-center text-muted py-4">No se encontraron empleados.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
