@@ -33,10 +33,12 @@
           <td>{{ p.contacto_proveedor }}</td>
           <td class="text-end text-nowrap">
             <a href="{% url 'proveedor_editar' p.id_proveedor %}" class="btn btn-sm btn-outline-secondary me-1" title="Editar"><i class="bi bi-pencil"></i></a>
+            {% if es_admin %}
             <form method="post" action="{% url 'proveedor_eliminar' p.id_proveedor %}" class="d-inline" onsubmit="return confirm('¿Eliminar este proveedor? Esta acción no se puede deshacer.')">
               {% csrf_token %}
               <button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button>
             </form>
+            {% endif %}
           </td>
         </tr>
         {% empty %}

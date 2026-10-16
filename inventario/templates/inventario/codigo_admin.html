@@ -1,0 +1,62 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Código de autorización - CampesinoStock{% endblock %}
+{% block encabezado %}Código admin{% endblock %}
+
+{% block extra_css %}
+<style>
+.campo-ojo{position:relative}
+.campo-ojo .form-control{padding-right:44px}
+.campo-ojo i{position:absolute; right:14px; top:50%; transform:translateY(-50%); cursor:pointer; color:#777; font-size:18px}
+</style>
+{% endblock %}
+
+{% block contenido %}
+<div style="max-width:560px; margin:0 auto">
+  <h2 style="font-size:34px">Código de autorización</h2>
+  <p class="text-muted">Este código se pide cuando se asigna el rol de Administrador a otra persona. Solo tú lo conoces.</p>
+
+  {% if not existe %}
+  <div class="alert alert-warning py-2">Todavía no hay un código configurado. Defínelo para poder crear más administradores.</div>
+  {% endif %}
+
+  <form method="post" class="caja" autocomplete="off">
+    {% csrf_token %}
+    <label class="small fw-bold" for="clave">Tu contraseña de acceso (para confirmar que eres tú)</label>
+    <div class="campo-ojo mb-3">
+      <input type="password" id="clave" name="clave" class="form-control" required autocomplete="current-password">
+      <i class="bi bi-eye" data-target="clave"></i>
+    </div>
+
+    <label class="small fw-bold" for="nuevo">{% if existe %}Nuevo código{% else %}Código{% endif %} (mínimo 8 caracteres)</label>
+    <div class="campo-ojo mb-3">
+      <input type="password" id="nuevo" name="nuevo" class="form-control" required autocomplete="off">
+      <i class="bi bi-eye" data-target="nuevo"></i>
+    </div>
+
+    <label class="small fw-bold" for="nuevo2">Confirmar código</label>
+    <div class="campo-ojo mb-3">
+      <input type="password" id="nuevo2" name="nuevo2" class="form-control" required autocomplete="off">
+      <i class="bi bi-eye" data-target="nuevo2"></i>
+    </div>
+
+    <button class="btn btn-vino">Guardar código</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.campo-ojo i').forEach(function(icono){
+  icono.addEventListener('click', function(){
+    var campo = document.getElementById(icono.dataset.target);
+    if (campo.type === 'password'){
+      campo.type = 'text';
+      icono.className = 'bi bi-eye-slash';
+    } else {
+      campo.type = 'password';
+      icono.className = 'bi bi-eye';
+    }
+  });
+});
+</script>
+{% endblock %}

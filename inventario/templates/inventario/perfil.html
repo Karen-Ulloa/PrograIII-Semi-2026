@@ -4,81 +4,294 @@
 
 {% block extra_css %}
 <style>
-.av-xl{width:72px; height:72px; border-radius:50%; background:var(--vino); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:30px; flex-shrink:0}
-.zona-peligro{border:1px solid #e3b5b5; background:#fdf5f5}
+.perfil-wrap{max-width:560px; margin:0 auto}
+
+/* Cabecera con foto */
+.cabecera{text-align:center; padding:8px 0 22px}
+.foto-box{position:relative; width:132px; height:132px; margin:0 auto 14px}
+.foto{width:132px; height:132px; border-radius:50%; background:var(--vino); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:56px; overflow:hidden; border:4px solid #fff; box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.foto img{width:100%; height:100%; object-fit:cover}
+.btn-camara{position:absolute; right:0; bottom:4px; width:42px; height:42px; border-radius:50%; background:var(--vino); color:#fff; border:3px solid var(--fondo); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:17px}
+.btn-camara:hover{background:#74151d}
+.menu-foto{display:none; position:absolute; left:50%; top:calc(100% + 8px); transform:translateX(-50%); z-index:30; background:#fff; border:1px solid var(--borde); border-radius:14px; box-shadow:0 8px 24px rgba(0,0,0,.15); padding:6px; min-width:230px; text-align:left}
+.menu-foto.abierto{display:block}
+.menu-foto button{display:flex; align-items:center; gap:12px; width:100%; background:none; border:0; padding:12px 14px; border-radius:10px; font-size:15px; color:var(--texto)}
+.menu-foto button:hover{background:#f4ebe6}
+.menu-foto button i{color:var(--vino); font-size:18px}
+.menu-foto button.peligro, .menu-foto button.peligro i{color:#b3261e}
+.nombre-perfil{font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:34px; line-height:1.1; margin:0}
+.rol-pill{display:inline-block; background:#f0e4e2; color:var(--vino); font-size:13px; font-weight:700; padding:3px 14px; border-radius:20px; margin-top:6px}
+.usuario-perfil{color:var(--suave); font-size:14px; margin-top:4px}
+.sugerencia-foto{color:var(--suave); font-size:13px; margin-top:10px}
+
+/* Grupos de opciones (estilo ajustes de WhatsApp) */
+.grupo{background:var(--panel); border:1px solid var(--borde); border-radius:16px; overflow:hidden; margin-bottom:16px}
+.grupo-titulo{font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:14px; letter-spacing:1px; color:var(--suave); text-transform:uppercase; margin:18px 4px 8px}
+.fila + .fila, .fila-link + .fila-link, .fila + .fila-link, .fila-link + .fila{border-top:1px solid var(--borde)}
+.fila summary, .fila-link{display:flex; align-items:center; gap:14px; padding:14px 16px; cursor:pointer; list-style:none; color:var(--texto); text-decoration:none}
+.fila summary::-webkit-details-marker{display:none}
+.fila summary:hover, .fila-link:hover{background:#f6efe8; color:var(--texto)}
+.ico{width:40px; height:40px; border-radius:12px; background:#f0e4e2; color:var(--vino); display:flex; align-items:center; justify-content:center; font-size:19px; flex-shrink:0}
+.txt{flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.25}
+.txt b{font-weight:600; font-size:15px}
+.txt small{color:var(--suave); font-size:12.5px}
+.flecha{color:#b3a9a0; transition:transform .2s}
+.fila[open] .flecha{transform:rotate(90deg)}
+.fila[open] summary{background:#f9f3ec}
+.panel-fila{padding:16px; border-top:1px solid var(--borde); background:#fff}
+.cerrar-sesion .ico{background:#fbe9e7; color:#b3261e}
+.cerrar-sesion .txt b{color:#b3261e}
+
+/* Información de la cuenta */
+.dato-cuenta{display:flex; justify-content:space-between; gap:16px; padding:9px 0; border-bottom:1px solid var(--borde); font-size:14px}
+.dato-cuenta:last-child{border-bottom:0}
+.dato-cuenta span:first-child{color:var(--suave)}
+.dato-cuenta span:last-child{text-align:right; font-weight:500; word-break:break-word}
+
+/* Ojo para ver contraseñas */
+.campo-ojo{position:relative}
+.campo-ojo .form-control{padding-right:44px}
+.campo-ojo i{position:absolute; right:14px; top:50%; transform:translateY(-50%); cursor:pointer; color:#777; font-size:18px}
+
+.zona-peligro{border:1px solid #e3b5b5; background:#fdf5f5; border-radius:12px; padding:14px; margin-top:14px}
 </style>
 {% endblock %}
 
 {% block contenido %}
-<div style="max-width:760px; margin:0 auto">
+<div class="perfil-wrap">
 
-  <div class="caja d-flex align-items-center gap-3 mb-3">
-    <div class="av-xl">{{ inicial }}</div>
-    <div>
-      <h2 class="m-0" style="font-size:32px">{{ empleado.nombre }} {{ empleado.apellido }}</h2>
-      <span class="text-muted">{{ rol }} · {{ empleado.usuario }}</span>
+  <!-- Formularios ocultos de la foto -->
+  <form id="form-foto" method="post" enctype="multipart/form-data" hidden>
+    {% csrf_token %}
+    <input type="hidden" name="accion" value="foto">
+    <input type="file" id="input-foto" name="foto" accept="image/*">
+  </form>
+  <form id="form-quitar" method="post" hidden>
+    {% csrf_token %}
+    <input type="hidden" name="accion" value="quitar_foto">
+  </form>
+
+  <!-- Cabecera -->
+  <div class="cabecera">
+    <div class="foto-box">
+      <div class="foto">{% if foto_url %}<img src="{{ foto_url }}" alt="Foto de perfil">{% else %}{{ inicial }}{% endif %}</div>
+      <button type="button" class="btn-camara" id="btn-camara" aria-label="Cambiar foto"><i class="bi bi-camera-fill"></i></button>
+      <div class="menu-foto" id="menu-foto">
+        <button type="button" id="op-camara"><i class="bi bi-camera"></i> Tomar foto</button>
+        <button type="button" id="op-galeria"><i class="bi bi-image"></i> Elegir de la galería</button>
+        {% if foto_url %}
+        <button type="submit" form="form-quitar" class="peligro"><i class="bi bi-trash3"></i> Quitar foto</button>
+        {% endif %}
+      </div>
     </div>
+    <h2 class="nombre-perfil">{{ empleado.nombre }} {{ empleado.apellido }}</h2>
+    <span class="rol-pill">{{ rol }}</span>
+    <div class="usuario-perfil">@{{ empleado.usuario }}</div>
+    {% if not foto_url %}<div class="sugerencia-foto">Toca la cámara para agregar tu foto. Es opcional.</div>{% endif %}
   </div>
 
-  <div class="caja mb-3">
-    <h3 style="font-size:22px">Mis datos</h3>
-    <form method="post" autocomplete="off">
-      {% csrf_token %}
-      <input type="hidden" name="accion" value="datos">
-      {% if form.non_field_errors %}<div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>{% endif %}
-      <div class="row g-3">
-        {% for campo in form %}
-        <div class="{% if campo.name == 'direccion' %}col-12{% else %}col-md-6{% endif %}">
-          <label class="small fw-bold" for="{{ campo.id_for_label }}">{{ campo.label }}</label>
-          {{ campo }}
-          {% for e in campo.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
-        </div>
-        {% endfor %}
+  <!-- Mi cuenta -->
+  <div class="grupo">
+    <details class="fila" {% if abrir == 'editar' %}open{% endif %}>
+      <summary>
+        <span class="ico"><i class="bi bi-pencil-square"></i></span>
+        <span class="txt"><b>Editar perfil</b><small>Nombre, correo, teléfono, dirección y foto</small></span>
+        <i class="bi bi-chevron-right flecha"></i>
+      </summary>
+      <div class="panel-fila">
+        <form method="post" autocomplete="off">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="datos">
+          {% if form.non_field_errors %}<div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>{% endif %}
+          <div class="row g-3">
+            {% for campo in form %}
+            <div class="{% if campo.name == 'direccion' %}col-12{% else %}col-md-6{% endif %}">
+              <label class="small fw-bold" for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+              {{ campo }}
+              {% for e in campo.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+            </div>
+            {% endfor %}
+          </div>
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <button class="btn btn-vino">Guardar cambios</button>
+            <button type="button" class="btn btn-outline-secondary" style="border-radius:30px" id="btn-cambiar-foto"><i class="bi bi-camera"></i> Cambiar foto</button>
+          </div>
+        </form>
       </div>
-      <button class="btn btn-vino mt-3">Guardar cambios</button>
-    </form>
-  </div>
+    </details>
 
-  <div class="caja mb-3">
-    <h3 style="font-size:22px">Cambiar contraseña</h3>
-    <form method="post" autocomplete="off">
-      {% csrf_token %}
-      <input type="hidden" name="accion" value="password">
-      <div class="row g-3">
-        <div class="col-12">
+    <details class="fila">
+      <summary>
+        <span class="ico"><i class="bi bi-key"></i></span>
+        <span class="txt"><b>Cambiar contraseña</b><small>Actualiza la contraseña de tu cuenta</small></span>
+        <i class="bi bi-chevron-right flecha"></i>
+      </summary>
+      <div class="panel-fila">
+        <form method="post" autocomplete="off">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="password">
           <label class="small fw-bold" for="actual">Contraseña actual</label>
-          <input type="password" id="actual" name="actual" class="form-control" required autocomplete="current-password">
-        </div>
-        <div class="col-md-6">
+          <div class="campo-ojo mb-3">
+            <input type="password" id="actual" name="actual" class="form-control" required autocomplete="current-password">
+            <i class="bi bi-eye" data-target="actual"></i>
+          </div>
           <label class="small fw-bold" for="password1">Contraseña nueva</label>
-          <input type="password" id="password1" name="password1" class="form-control" required autocomplete="new-password">
-        </div>
-        <div class="col-md-6">
+          <div class="campo-ojo mb-3">
+            <input type="password" id="password1" name="password1" class="form-control" required autocomplete="new-password">
+            <i class="bi bi-eye" data-target="password1"></i>
+          </div>
           <label class="small fw-bold" for="password2">Confirmar contraseña nueva</label>
-          <input type="password" id="password2" name="password2" class="form-control" required autocomplete="new-password">
-        </div>
+          <div class="campo-ojo mb-2">
+            <input type="password" id="password2" name="password2" class="form-control" required autocomplete="new-password">
+            <i class="bi bi-eye" data-target="password2"></i>
+          </div>
+          <small class="text-muted d-block">Mínimo 8 caracteres, con mayúscula, minúscula, número y símbolo.</small>
+          <button class="btn btn-vino mt-3">Cambiar contraseña</button>
+        </form>
       </div>
-      <small class="text-muted d-block mt-2">Mínimo 8 caracteres, con mayúscula, minúscula, número y símbolo.</small>
-      <button class="btn btn-vino mt-3">Cambiar contraseña</button>
-    </form>
+    </details>
+
+    <details class="fila">
+      <summary>
+        <span class="ico"><i class="bi bi-person-vcard"></i></span>
+        <span class="txt"><b>Información de la cuenta</b><small>Tus datos y tu rol en el sistema</small></span>
+        <i class="bi bi-chevron-right flecha"></i>
+      </summary>
+      <div class="panel-fila">
+        <div class="dato-cuenta"><span>Nombre</span><span>{{ empleado.nombre }} {{ empleado.apellido }}</span></div>
+        <div class="dato-cuenta"><span>Usuario</span><span>{{ empleado.usuario }}</span></div>
+        <div class="dato-cuenta"><span>Rol</span><span>{{ rol }}</span></div>
+        <div class="dato-cuenta"><span>Correo</span><span>{{ empleado.correo }}</span></div>
+        <div class="dato-cuenta"><span>Teléfono</span><span>{{ empleado.telefono }}</span></div>
+        <div class="dato-cuenta"><span>Dirección</span><span>{{ empleado.direccion }}</span></div>
+        <div class="dato-cuenta"><span>Estado</span><span>{% if empleado.activo %}Activa{% else %}Inactiva{% endif %}</span></div>
+      </div>
+    </details>
   </div>
 
-  <div class="caja zona-peligro mb-3">
-    <h3 style="font-size:22px; color:#a32020">Eliminar mi cuenta</h3>
-    <p class="small text-muted mb-2">Escribe tu contraseña para confirmar.</p>
-    <form method="post" autocomplete="off" onsubmit="return confirm('¿Seguro que quieres eliminar tu cuenta? No se puede deshacer.')">
-      {% csrf_token %}
-      <input type="hidden" name="accion" value="eliminar">
-      <div class="row g-2">
-        <div class="col-md-8">
-          <input type="password" name="clave" class="form-control" placeholder="Tu contraseña" required autocomplete="current-password">
-        </div>
-        <div class="col-md-4">
-          <button class="btn btn-danger w-100" style="border-radius:30px">Eliminar mi cuenta</button>
+  <!-- Seguridad -->
+  <div class="grupo">
+    <details class="fila">
+      <summary>
+        <span class="ico"><i class="bi bi-shield-lock"></i></span>
+        <span class="txt"><b>Configuración de seguridad</b><small>Protege tu cuenta</small></span>
+        <i class="bi bi-chevron-right flecha"></i>
+      </summary>
+      <div class="panel-fila">
+        {% if es_admin %}
+        <p class="small text-muted mb-2">Con tu rol de administrador puedes gestionar las cuentas del sistema y el código de autorización desde la sección <b>Administración</b>.</p>
+        {% else %}
+        <p class="small text-muted mb-2">Tu rol no incluye configuraciones administrativas. Para proteger tu cuenta puedes cambiar tu contraseña cuando quieras.</p>
+        {% endif %}
+
+        <div class="zona-peligro">
+          <b style="color:#a32020">Eliminar mi cuenta</b>
+          <p class="small text-muted mb-2">Esta acción no se puede deshacer. Escribe tu contraseña para confirmar.</p>
+          <form method="post" autocomplete="off" onsubmit="return confirm('¿Seguro que quieres eliminar tu cuenta? No se puede deshacer.')">
+            {% csrf_token %}
+            <input type="hidden" name="accion" value="eliminar">
+            <div class="campo-ojo mb-2">
+              <input type="password" id="clave" name="clave" class="form-control" placeholder="Tu contraseña" required autocomplete="current-password">
+              <i class="bi bi-eye" data-target="clave"></i>
+            </div>
+            <button class="btn btn-danger w-100" style="border-radius:30px">Eliminar mi cuenta</button>
+          </form>
         </div>
       </div>
-    </form>
+    </details>
+  </div>
+
+  <!-- Administración (solo administrador) -->
+  {% if es_admin %}
+  <div class="grupo-titulo">Administración</div>
+  <div class="grupo">
+    <a class="fila-link" href="{% url 'codigo_admin' %}">
+      <span class="ico"><i class="bi bi-shield-check"></i></span>
+      <span class="txt"><b>Código de autorización</b><small>Define o cambia el código para crear administradores</small></span>
+      <i class="bi bi-chevron-right flecha"></i>
+    </a>
+    <a class="fila-link" href="{% url 'empleados' %}">
+      <span class="ico"><i class="bi bi-person-badge"></i></span>
+      <span class="txt"><b>Gestión de cuentas</b><small>Empleados, roles y estado de las cuentas</small></span>
+      <i class="bi bi-chevron-right flecha"></i>
+    </a>
+  </div>
+  {% endif %}
+
+  <!-- Cerrar sesión -->
+  <div class="grupo">
+    <a class="fila-link cerrar-sesion" href="{% url 'logout' %}">
+      <span class="ico"><i class="bi bi-box-arrow-right"></i></span>
+      <span class="txt"><b>Cerrar sesión</b><small>Salir de tu cuenta de forma segura</small></span>
+    </a>
   </div>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ===== Foto: cámara o galería ===== */
+var input = document.getElementById('input-foto');
+var menu = document.getElementById('menu-foto');
+
+function alternarMenuFoto(){ menu.classList.toggle('abierto'); }
+
+document.getElementById('btn-camara').addEventListener('click', function(e){
+  e.stopPropagation();
+  alternarMenuFoto();
+});
+document.getElementById('btn-cambiar-foto').addEventListener('click', function(e){
+  e.stopPropagation();
+  window.scrollTo({top: 0, behavior: 'smooth'});
+  menu.classList.add('abierto');
+});
+document.getElementById('op-camara').addEventListener('click', function(){
+  input.setAttribute('capture', 'user');
+  menu.classList.remove('abierto');
+  input.click();
+});
+document.getElementById('op-galeria').addEventListener('click', function(){
+  input.removeAttribute('capture');
+  menu.classList.remove('abierto');
+  input.click();
+});
+document.addEventListener('click', function(e){
+  if (!menu.contains(e.target)) menu.classList.remove('abierto');
+});
+input.addEventListener('change', function(){
+  var archivo = input.files[0];
+  if (!archivo) return;
+  if (archivo.size > 8 * 1024 * 1024){
+    alert('La foto pesa demasiado (máximo 8 MB).');
+    input.value = '';
+    return;
+  }
+  document.getElementById('form-foto').submit();
+});
+
+/* ===== Ojo para ver u ocultar contraseñas ===== */
+document.querySelectorAll('.campo-ojo i').forEach(function(icono){
+  icono.addEventListener('click', function(){
+    var campo = document.getElementById(icono.dataset.target);
+    if (campo.type === 'password'){
+      campo.type = 'text';
+      icono.className = 'bi bi-eye-slash';
+    } else {
+      campo.type = 'password';
+      icono.className = 'bi bi-eye';
+    }
+  });
+});
+
+/* ===== Solo una sección abierta a la vez ===== */
+var secciones = document.querySelectorAll('details.fila');
+secciones.forEach(function(d){
+  d.addEventListener('toggle', function(){
+    if (d.open){
+      secciones.forEach(function(otra){ if (otra !== d) otra.open = false; });
+    }
+  });
+});
+</script>
 {% endblock %}

@@ -18,6 +18,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from inventario import views
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -46,4 +48,8 @@ urlpatterns = [
     path('proveedores/nuevo/', views.proveedor_form, name='proveedor_nuevo'),
     path('proveedores/<int:pk>/editar/', views.proveedor_form, name='proveedor_editar'),
     path('proveedores/<int:pk>/eliminar/', views.proveedor_eliminar, name='proveedor_eliminar'),
+    path('codigo-admin/', views.codigo_admin, name='codigo_admin'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

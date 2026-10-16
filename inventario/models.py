@@ -44,6 +44,7 @@ class Empleados(models.Model):
     password = models.CharField(max_length=255)
     rol = models.CharField(max_length=20, default='Empleado')
     activo = models.BooleanField(default=True)
+    foto = models.ImageField(upload_to='perfiles/', null=True, blank=True)
     class Meta:
         db_table = 'empleados'
 
@@ -115,3 +116,10 @@ class DetalleVenta(models.Model):
     precio_venta = models.DecimalField(max_digits=10, decimal_places=2)
     class Meta:
         db_table = 'detalle_venta'
+
+class Configuracion(models.Model):
+    clave = models.CharField(max_length=50, primary_key=True)
+    valor = models.CharField(max_length=255)
+
+    class Meta:
+        db_table = 'configuracion'

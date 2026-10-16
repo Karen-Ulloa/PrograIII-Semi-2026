@@ -2,6 +2,15 @@
 {% block titulo %}{% if empleado %}Editar empleado{% else %}Nuevo empleado{% endif %} - CampesinoStock{% endblock %}
 {% block encabezado %}{% if empleado %}Editar empleado{% else %}Nuevo empleado{% endif %}{% endblock %}
 
+{% block extra_css %}
+<style>
+.campo-ojo{position:relative}
+.campo-ojo .form-control{padding-right:44px}
+.campo-ojo i{position:absolute; right:14px; top:50%; transform:translateY(-50%); cursor:pointer; color:#777; font-size:18px}
+.form-check-input:checked{background-color:#5a1016; border-color:#5a1016}
+</style>
+{% endblock %}
+
 {% block contenido %}
 <div style="max-width:760px; margin:0 auto">
   <a href="{% url 'empleados' %}" class="small text-decoration-none" style="color:var(--vino)">&lt; Volver a empleados</a>
@@ -24,7 +33,14 @@
         {% else %}
         <div class="{% if campo.name == 'direccion' %}col-12{% else %}col-md-6{% endif %}">
           <label class="small fw-bold" for="{{ campo.id_for_label }}">{{ campo.label }}</label>
-          {{ campo }}
+          {% if campo.name == 'codigo_admin' or campo.name == 'password1' or campo.name == 'password2' %}
+            <div class="campo-ojo">
+              {{ campo }}
+              <i class="bi bi-eye" data-target="{{ campo.id_for_label }}"></i>
+            </div>
+          {% else %}
+            {{ campo }}
+          {% endif %}
           {% for e in campo.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
           {% if campo.name == 'password1' and empleado %}<small class="text-muted">Déjala vacía para no cambiarla.</small>{% endif %}
           {% if campo.name == 'password1' and not empleado %}<small class="text-muted">Mínimo 8 caracteres, con mayúscula, minúscula, número y símbolo.</small>{% endif %}
@@ -39,4 +55,22 @@
     </div>
   </form>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Ojo para ver u ocultar */
+document.querySelectorAll('.campo-ojo i').forEach(function(icono){
+  icono.addEventListener('click', function(){
+    var campo = document.getElementById(icono.dataset.target);
+    if (campo.type === 'password'){
+      campo.type = 'text';
+      icono.className = 'bi bi-eye-slash';
+    } else {
+      campo.type = 'password';
+      icono.className = 'bi bi-eye';
+    }
+  });
+});
+</script>
 {% endblock %}

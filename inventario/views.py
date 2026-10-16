@@ -4,27 +4,31 @@ import re
 import secrets
 import time
 from functools import wraps
+from io import BytesIO
+from uuid import uuid4
 from smtplib import SMTPException
 
+from django import forms
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.hashers import check_password, make_password
+from django.core.files.base import ContentFile
 from django.core.mail import send_mail
-from django.db.models import DecimalField, F, Sum
+from django.core.validators import validate_email
+from django.db.models import DecimalField, F, Q, Sum
 from django.http import JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from PIL import Image, ImageOps, UnidentifiedImageError
 from requests.exceptions import RequestException
 from twilio.base.exceptions import TwilioException
 from twilio.rest import Client
-from django import forms
-from django.contrib import messages
-from django.db.models import Q
-from django.shortcuts import get_object_or_404
-from .models import Categorias, DetalleCompra, RegistrosMerma, Ubicaciones
-from django.core.validators import validate_email
-from .models import Proveedores, ProductoProveedo
 
-from .models import DetalleVenta, Empleados, OrdenesCompra, Productos, Ventas
+from .models import (
+    Categorias, Configuracion, DetalleCompra, DetalleVenta, Empleados,
+    OrdenesCompra, ProductoProveedo, Productos, Proveedores,
+    RegistrosMerma, Ubicaciones, Ventas,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +76,7 @@ def _buscar_empleado_por_telefono(telefono):
 
 
 # ---------------------------------------------------------------
-# PERMISOS
+# PERMISOS Y CONFIGURACIÓN
 # ---------------------------------------------------------------
 def login_requerido(vista):
     """Exige sesión iniciada. Deja al empleado en request.empleado."""
@@ -87,15 +91,55 @@ def login_requerido(vista):
     return envoltura
 
 
-def solo_admin(vista):
-    """Exige sesión iniciada y rol Administrador."""
-    @login_requerido
-    @wraps(vista)
-    def envoltura(request, *args, **kwargs):
-        if request.empleado.rol != 'Administrador':
-            return render(request, 'inventario/sin_permiso.html', status=403)
-        return vista(request, *args, **kwargs)
-    return envoltura
+ROLES = ('Administrador', 'Encargado', 'Empleado')
+
+
+def roles_permitidos(*roles):
+    """Exige sesión iniciada y que el rol esté en la lista."""
+    def decorador(vista):
+        @login_requerido
+        @wraps(vista)
+        def envoltura(request, *args, **kwargs):
+            if request.empleado.rol not in roles:
+                return render(request, 'inventario/sin_permiso.html', status=403)
+            return vista(request, *args, **kwargs)
+        return envoltura
+    return decorador
+
+
+solo_admin = roles_permitidos('Administrador')
+gestor = roles_permitidos('Administrador', 'Encargado')
+
+
+def obtener_config(clave):
+    fila = Configuracion.objects.filter(pk=clave).first()
+    return fila.valor if fila else None
+
+
+def guardar_config(clave, valor):
+    Configuracion.objects.update_or_create(clave=clave, defaults={'valor': valor})
+
+
+def codigo_admin_correcto(codigo):
+    hash_guardado = obtener_config('codigo_admin_hash')
+    return bool(hash_guardado) and check_password(codigo, hash_guardado)
+
+
+def contexto(request, activo='', **extra):
+    """Datos comunes para todas las pantallas con menú."""
+    emp = request.empleado
+    datos = {
+        'nombre': emp.nombre,
+        'rol': emp.rol,
+        'es_admin': emp.rol == 'Administrador',
+        'es_gestor': emp.rol in ('Administrador', 'Encargado'),
+        'inicial': emp.nombre[:1].upper(),
+        'foto_url': emp.foto.url if emp.foto else '',
+        'activo': activo,
+        'alertas': 0,
+    }
+    datos.update(extra)
+    return datos
 
 
 # ---------------------------------------------------------------
@@ -110,16 +154,19 @@ def terminos(request):
 
 
 def registro(request):
+    # Si aún no existe ningún administrador, la primera cuenta es la del dueño.
+    primer_uso = not Empleados.objects.filter(rol='Administrador').exists()
+
     if request.method == 'POST':
         datos = request.POST.copy()
-        datos['password'] = ''
-        datos['password2'] = ''
-        datos['codigo_admin'] = ''
+        for campo in ('password', 'password2', 'codigo_admin', 'codigo_admin2'):
+            datos[campo] = ''
 
         def volver(error, limpiar=None):
             if limpiar:
                 datos[limpiar] = ''
-            return render(request, 'inventario/registro.html', {'error': error, 'datos': datos})
+            return render(request, 'inventario/registro.html', {
+                'error': error, 'datos': datos, 'primer_uso': primer_uso})
 
         password = request.POST.get('password', '')
         if password != request.POST.get('password2', ''):
@@ -134,14 +181,16 @@ def registro(request):
         correo = request.POST.get('correo', '').strip().lower()
         usuario = request.POST.get('usuario', '').strip().lower()
 
-        rol = request.POST.get('rol', 'Empleado')
-        if rol not in ('Administrador', 'Empleado'):
+        codigo = ''
+        if primer_uso:
+            codigo = request.POST.get('codigo_admin', '')
+            if len(codigo) < 8:
+                return volver('El código secreto debe tener al menos 8 caracteres.')
+            if codigo != request.POST.get('codigo_admin2', ''):
+                return volver('Los códigos secretos no coinciden.')
+            rol = 'Administrador'
+        else:
             rol = 'Empleado'
-
-        if rol == 'Administrador':
-            codigo_admin = request.POST.get('codigo_admin', '')
-            if not hmac.compare_digest(codigo_admin.encode(), settings.CODIGO_ADMIN.encode()):
-                return volver('El código de administrador no es correcto.')
 
         if Empleados.objects.filter(correo=correo).exists():
             return volver(f'El correo {correo} ya está registrado.', limpiar='correo')
@@ -162,6 +211,9 @@ def registro(request):
                 usuario_final = f"{usuario_base}{c}"
                 c += 1
 
+        if primer_uso and Empleados.objects.filter(rol='Administrador').exists():
+            return volver('Ya existe un administrador. Recarga la página para registrarte como empleado.')
+
         Empleados.objects.create(
             nombre=nombre, apellido=apellido,
             direccion=request.POST.get('direccion'), correo=correo,
@@ -169,8 +221,11 @@ def registro(request):
             password=make_password(password),
             rol=rol,
         )
+        if primer_uso:
+            guardar_config('codigo_admin_hash', make_password(codigo))
         return redirect('login')
-    return render(request, 'inventario/registro.html', {'datos': {}})
+
+    return render(request, 'inventario/registro.html', {'datos': {}, 'primer_uso': primer_uso})
 
 
 def sugerir_usuario(request):
@@ -379,6 +434,9 @@ def restablecer(request):
     return render(request, 'inventario/restablecer.html')
 
 
+# ---------------------------------------------------------------
+# DASHBOARD
+# ---------------------------------------------------------------
 @login_requerido
 def dashboard(request):
     hoy = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -398,20 +456,9 @@ def dashboard(request):
     ))
 
 
-def contexto(request, activo='', **extra):
-    emp = request.empleado
-    datos = {
-        'nombre': emp.nombre,
-        'rol': emp.rol,
-        'es_admin': emp.rol == 'Administrador',
-        'inicial': emp.nombre[:1].upper(),
-        'activo': activo,
-        'alertas': 0,
-    }
-    datos.update(extra)
-    return datos
-
-
+# ---------------------------------------------------------------
+# PRODUCTOS
+# ---------------------------------------------------------------
 class ProductoForm(forms.ModelForm):
     pasillo = forms.CharField(
         required=False, max_length=50, label='Pasillo',
@@ -481,7 +528,7 @@ def productos_lista(request):
 def api_productos(request):
     q = request.GET.get('q', '').strip()
     cat = request.GET.get('categoria', '')
-    es_admin = request.empleado.rol == 'Administrador'
+    es_gestor = request.empleado.rol in ('Administrador', 'Encargado')
 
     qs = Productos.objects.select_related('id_categoria', 'id_ubicacion').order_by('nombre_producto')
     if q:
@@ -503,14 +550,14 @@ def api_productos(request):
             'stock_minimo': p.stock_minimo,
             'precio_venta': float(p.precio_producto),
         }
-        if es_admin:
+        if es_gestor:
             item['precio_compra'] = float(p.precio_compra)
         items.append(item)
 
     return JsonResponse({'productos': items, 'total': total})
 
 
-@solo_admin
+@gestor
 def producto_form(request, pk=None):
     producto = get_object_or_404(Productos, pk=pk) if pk else None
 
@@ -555,10 +602,16 @@ def producto_eliminar(request, pk):
     return redirect('productos')
 
 
+# ---------------------------------------------------------------
+# EMPLEADOS (solo administrador)
+# ---------------------------------------------------------------
 class EmpleadoForm(forms.ModelForm):
     rol = forms.ChoiceField(
-        choices=[('Empleado', 'Empleado'), ('Administrador', 'Administrador')],
+        choices=[('Empleado', 'Empleado'), ('Encargado', 'Encargado'), ('Administrador', 'Administrador')],
         label='Rol', widget=forms.Select(attrs={'class': 'form-select'}))
+    codigo_admin = forms.CharField(
+        required=False, label='Código de autorización (solo para asignar el rol Administrador)',
+        widget=forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'off'}))
     password1 = forms.CharField(
         required=False, label='Contraseña',
         widget=forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'new-password'}))
@@ -567,7 +620,7 @@ class EmpleadoForm(forms.ModelForm):
         widget=forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'new-password'}))
 
     field_order = ['nombre', 'apellido', 'correo', 'telefono', 'direccion',
-                   'usuario', 'rol', 'password1', 'password2', 'activo']
+                   'usuario', 'rol', 'codigo_admin', 'password1', 'password2', 'activo']
 
     class Meta:
         model = Empleados
@@ -640,6 +693,13 @@ class EmpleadoForm(forms.ModelForm):
                 self.add_error('rol', 'No puedes quitarte el rol de administrador a ti misma.')
             if not datos.get('activo'):
                 self.add_error('activo', 'No puedes desactivar tu propia cuenta.')
+
+        # Para dar el rol Administrador a alguien nuevo se pide el código secreto.
+        if datos.get('rol') == 'Administrador' and (creando or self.instance.rol != 'Administrador'):
+            if not obtener_config('codigo_admin_hash'):
+                self.add_error('codigo_admin', 'Primero configura el código admin en el menú "Código admin".')
+            elif not codigo_admin_correcto(datos.get('codigo_admin', '')):
+                self.add_error('codigo_admin', 'El código de autorización no es correcto.')
         return datos
 
     def save(self, commit=True):
@@ -701,9 +761,36 @@ def empleado_eliminar(request, pk):
             messages.error(request, 'No se puede eliminar: tiene ventas registradas. Mejor desactívalo.')
         else:
             nombre = emp.nombre
+            if emp.foto:
+                emp.foto.delete(save=False)
             emp.delete()
             messages.success(request, f'Empleado "{nombre}" eliminado.')
     return redirect('empleados')
+
+
+# ---------------------------------------------------------------
+# CÓDIGO SECRETO DE ADMINISTRADOR
+# ---------------------------------------------------------------
+@solo_admin
+def codigo_admin(request):
+    existe = bool(obtener_config('codigo_admin_hash'))
+    if request.method == 'POST':
+        clave = request.POST.get('clave', '')
+        nuevo = request.POST.get('nuevo', '')
+        nuevo2 = request.POST.get('nuevo2', '')
+        if not check_password(clave, request.empleado.password):
+            messages.error(request, 'La contraseña de tu cuenta no es correcta.')
+        elif len(nuevo) < 8:
+            messages.error(request, 'El código debe tener al menos 8 caracteres.')
+        elif nuevo != nuevo2:
+            messages.error(request, 'Los códigos no coinciden.')
+        else:
+            guardar_config('codigo_admin_hash', make_password(nuevo))
+            messages.success(request, 'El código de autorización se guardó correctamente.')
+            return redirect('codigo_admin')
+    return render(request, 'inventario/codigo_admin.html', contexto(
+        request, 'codigo', existe=existe))
+
 
 # ---------------------------------------------------------------
 # PERFIL (cada persona maneja su propia cuenta)
@@ -736,10 +823,47 @@ class PerfilForm(forms.ModelForm):
         return telefono
 
 
+MAX_FOTO = 8 * 1024 * 1024  # 8 MB (las fotos de celular suelen pesar entre 2 y 6 MB)
+
+
+def procesar_foto(archivo):
+    """Valida que sea una imagen real, la endereza, la recorta cuadrada y la
+    guarda como JPEG de 480x480. Al recodificarla se eliminan los metadatos
+    (ubicación GPS, modelo del teléfono, etc.)."""
+    if archivo.size > MAX_FOTO:
+        raise ValueError('La foto pesa demasiado (máximo 8 MB).')
+    try:
+        img = Image.open(archivo)
+        formato = img.format
+        img.verify()
+        archivo.seek(0)
+        img = Image.open(archivo)
+        img.load()
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
+        raise ValueError('El archivo no es una imagen válida. Usa una foto JPG, PNG o WEBP.')
+    if formato not in ('JPEG', 'PNG', 'WEBP'):
+        raise ValueError('Formato no permitido. Usa una foto JPG, PNG o WEBP.')
+
+    img = ImageOps.exif_transpose(img)
+    if img.mode in ('RGBA', 'LA', 'P'):
+        img = img.convert('RGBA')
+        fondo = Image.new('RGB', img.size, (255, 255, 255))
+        fondo.paste(img, mask=img.split()[-1])
+        img = fondo
+    else:
+        img = img.convert('RGB')
+    img = ImageOps.fit(img, (480, 480), Image.LANCZOS)
+
+    salida = BytesIO()
+    img.save(salida, format='JPEG', quality=85)
+    return ContentFile(salida.getvalue(), name=f'{uuid4().hex}.jpg')
+
+
 @login_requerido
 def perfil(request):
     emp = request.empleado
     form = PerfilForm(instance=emp)
+    abrir = ''
 
     if request.method == 'POST':
         accion = request.POST.get('accion')
@@ -750,6 +874,29 @@ def perfil(request):
                 form.save()
                 messages.success(request, 'Tus datos se guardaron correctamente.')
                 return redirect('perfil')
+            abrir = 'editar'
+
+        elif accion == 'foto':
+            archivo = request.FILES.get('foto')
+            if not archivo:
+                messages.error(request, 'No se seleccionó ninguna foto.')
+            else:
+                try:
+                    contenido = procesar_foto(archivo)
+                except ValueError as error:
+                    messages.error(request, str(error))
+                else:
+                    if emp.foto:
+                        emp.foto.delete(save=False)
+                    emp.foto.save(contenido.name, contenido, save=True)
+                    messages.success(request, 'Tu foto de perfil se actualizó.')
+            return redirect('perfil')
+
+        elif accion == 'quitar_foto':
+            if emp.foto:
+                emp.foto.delete(save=True)
+                messages.success(request, 'Se quitó tu foto de perfil.')
+            return redirect('perfil')
 
         elif accion == 'password':
             actual = request.POST.get('actual', '')
@@ -782,16 +929,19 @@ def perfil(request):
                 messages.error(request, 'No puedes eliminar tu cuenta porque tiene ventas registradas. '
                                         'Pide a otro administrador que la desactive.')
             else:
+                if emp.foto:
+                    emp.foto.delete(save=False)
                 emp.delete()
                 request.session.flush()
                 return redirect('login')
             return redirect('perfil')
 
     return render(request, 'inventario/perfil.html', contexto(
-        request, 'perfil', form=form, empleado=emp))
+        request, 'perfil', form=form, empleado=emp, abrir=abrir))
+
 
 # ---------------------------------------------------------------
-# PROVEEDORES (solo administrador)
+# PROVEEDORES (administrador y encargado; solo el administrador elimina)
 # ---------------------------------------------------------------
 class ProveedorForm(forms.ModelForm):
     class Meta:
@@ -819,7 +969,7 @@ class ProveedorForm(forms.ModelForm):
         return self.cleaned_data['contacto_proveedor'].strip()
 
 
-@solo_admin
+@gestor
 def proveedores_lista(request):
     q = request.GET.get('q', '').strip()
     qs = Proveedores.objects.order_by('nombre_proveedor')
@@ -829,7 +979,7 @@ def proveedores_lista(request):
         request, 'proveedores', proveedores=qs, q=q))
 
 
-@solo_admin
+@gestor
 def proveedor_form(request, pk=None):
     proveedor = get_object_or_404(Proveedores, pk=pk) if pk else None
     if request.method == 'POST':

@@ -18,6 +18,7 @@ body{margin:0; background:#fdfbf7}
 .form-check-input:checked{background-color:#5a1016; border-color:#5a1016}
 .logo-box{background:white; padding:10px; border-radius:16px}
 .chip{cursor:pointer; background:#5a1016; color:white; padding:5px 12px; border-radius:20px; font-size:12px; border:0}
+.inicial{background:#fff3cd; border:1px solid #f2d27a; border-radius:12px; padding:12px 14px; margin-bottom:12px; font-size:13px}
 </style>
 </head>
 <body>
@@ -29,9 +30,14 @@ body{margin:0; background:#fdfbf7}
   <h3 class="mt-4 fw-bold">Gestiona tu inventario<br>desde cualquier lugar</h3>
 </div>
 <div class="col-md-6 d-flex justify-content-center" style="padding:30px 0">
-<div style="width:380px">
+<div style="width:380px; max-width:92%">
 <a href="{% url 'login' %}" class="small text-muted text-decoration-none">&lt; Volver</a>
-<h3 class="fw-bold mt-2">Crear cuenta</h3>
+<h3 class="fw-bold mt-2">{% if primer_uso %}Configuración inicial{% else %}Crear cuenta{% endif %}</h3>
+
+{% if primer_uso %}
+<div class="inicial"><b>Primer uso de la aplicación.</b> Esta cuenta será la del <b>administrador principal (dueño)</b>. Define también un código secreto, que se pedirá para autorizar nuevas cuentas de administrador.</div>
+{% endif %}
+
 {% if error %}<div class="alert alert-danger py-2 small">{{ error }}</div>{% endif %}
 
 <form method="POST" class="mt-3">
@@ -51,19 +57,9 @@ body{margin:0; background:#fdfbf7}
 <label class="small fw-bold" for="direccion_input">Dirección *</label>
 <input type="text" id="direccion_input" name="direccion" class="form-control mb-2" required placeholder="Ej: Calle principal #123, frente a plaza" autocomplete="off" value="{{ datos.direccion }}">
 
-<label class="small fw-bold" for="rol_input">Tipo de cuenta *</label>
-<select id="rol_input" name="rol" class="form-control mb-2" required>
-  <option value="Empleado" {% if datos.rol != 'Administrador' %}selected{% endif %}>Empleado</option>
-  <option value="Administrador" {% if datos.rol == 'Administrador' %}selected{% endif %}>Administrador</option>
-</select>
-<div id="caja_codigo_admin" style="display:none">
-  <label class="small fw-bold" for="codigo_admin_input">Código de administrador *</label>
-  <input type="password" id="codigo_admin_input" name="codigo_admin" class="form-control mb-1" autocomplete="off">
-  <small class="text-muted" style="font-size:11px; display:block; margin-bottom:8px">Pídelo al dueño de la agroferretería.</small>
-</div>
-
 <label class="small fw-bold" for="usuario_input">Usuario *</label>
 <input type="text" id="usuario_input" name="usuario" class="form-control mb-1" required autocomplete="username" autocapitalize="none" spellcheck="false" value="{{ datos.usuario }}">
+<small id="estado_usuario" style="font-size:11px; display:block; margin-bottom:6px">Se propone como nombre.apellido, pero puedes escribir el tuyo.</small>
 <div id="sugerencias_box" style="display:none" class="mb-2">
   <small class="text-danger fw-bold" style="font-size:11px">Ese usuario ya existe, te sugerimos:</small>
   <div id="lista_sugerencias" class="d-flex gap-2 flex-wrap mt-1"></div>
@@ -91,6 +87,14 @@ body{margin:0; background:#fdfbf7}
 </div>
 <small id="coinciden" style="font-size:12px; display:block; margin-bottom:12px"></small>
 
+{% if primer_uso %}
+<label class="small fw-bold" for="codigo_admin">Código secreto de administrador * <span class="text-muted fw-normal">(mínimo 8 caracteres)</span></label>
+<input type="password" id="codigo_admin" name="codigo_admin" class="form-control mb-2" required autocomplete="off" minlength="8">
+<label class="small fw-bold" for="codigo_admin2">Confirmar código secreto *</label>
+<input type="password" id="codigo_admin2" name="codigo_admin2" class="form-control mb-1" required autocomplete="off" minlength="8">
+<small class="text-muted" style="font-size:11px; display:block; margin-bottom:12px">Guárdalo en un lugar seguro. Podrás cambiarlo después desde la opción "Código admin".</small>
+{% endif %}
+
 <div class="form-check mb-3">
   <input class="form-check-input" type="checkbox" id="acepta" required>
   <label class="form-check-label small" for="acepta">
@@ -98,7 +102,7 @@ body{margin:0; background:#fdfbf7}
   </label>
 </div>
 
-<button class="btn btn-vino w-100">Crear cuenta</button>
+<button class="btn btn-vino w-100">{% if primer_uso %}Crear cuenta del administrador{% else %}Crear cuenta{% endif %}</button>
 </form>
 </div>
 </div>
@@ -178,22 +182,8 @@ usuarioInput.addEventListener('input', () => {
   temporizador = setTimeout(revisarUsuario, 400);
 });
 
-/* Al volver con un error, conserva lo escrito y revisa el usuario */
 if (usuarioInput.value.trim()) { editadoAMano = true; }
 if (nombreInput.value.trim() && apellidoInput.value.trim()) { revisarUsuario(); }
-
-/* ===== Código de administrador ===== */
-const rolInput = document.getElementById('rol_input');
-const cajaCodigo = document.getElementById('caja_codigo_admin');
-const codigoInput = document.getElementById('codigo_admin_input');
-function mostrarCodigo(){
-  const esAdmin = rolInput.value === 'Administrador';
-  cajaCodigo.style.display = esAdmin ? 'block' : 'none';
-  codigoInput.required = esAdmin;
-  if(!esAdmin){ codigoInput.value = ''; }
-}
-rolInput.addEventListener('change', mostrarCodigo);
-mostrarCodigo();
 
 /* ===== Seguridad de la contraseña ===== */
 const p1 = document.getElementById('p1');

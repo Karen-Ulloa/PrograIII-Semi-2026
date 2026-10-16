@@ -5,6 +5,7 @@
 {% block contenido %}
 <div id="config" hidden
      data-admin="{{ es_admin|yesno:'true,false' }}"
+     data-gestor="{{ es_gestor|yesno:'true,false' }}"
      data-csrf="{{ csrf_token }}"
      data-api="{% url 'api_productos' %}"
      data-editar="{% url 'producto_editar' 0 %}"
@@ -12,7 +13,7 @@
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <h2 class="m-0" style="font-size:34px">Productos</h2>
-  {% if es_admin %}
+  {% if es_gestor %}
   <a href="{% url 'producto_nuevo' %}" class="btn btn-vino"><i class="bi bi-plus-lg"></i> Nuevo producto</a>
   {% endif %}
 </div>
@@ -42,9 +43,9 @@
         <th>Categoría</th>
         <th>Ubicación</th>
         <th>Stock</th>
-        {% if es_admin %}<th>P. compra</th>{% endif %}
+        {% if es_gestor %}<th>P. compra</th>{% endif %}
         <th>P. venta</th>
-        {% if es_admin %}<th class="text-end">Acciones</th>{% endif %}
+        {% if es_gestor %}<th class="text-end">Acciones</th>{% endif %}
       </tr>
     </thead>
     <tbody id="cuerpo"></tbody>
@@ -57,6 +58,7 @@
 <script>
 const CONF = document.getElementById('config').dataset;
 const ES_ADMIN = CONF.admin === 'true';
+const ES_GESTOR = CONF.gestor === 'true';
 const CSRF = CONF.csrf;
 const URL_API = CONF.api;
 const URL_EDITAR = CONF.editar;
@@ -86,7 +88,7 @@ function cargar(){
   const url = URL_API + '?q=' + encodeURIComponent(campoBuscar.value.trim()) +
               '&categoria=' + encodeURIComponent(campoCategoria.value);
   fetch(url).then(r => r.json()).then(data => {
-    const columnas = ES_ADMIN ? 7 : 5;
+    const columnas = ES_GESTOR ? 7 : 5;
     if (data.productos.length === 0){
       cuerpo.innerHTML = '<tr><td colspan="' + columnas + '" class="text-center text-muted py-4">No se encontraron productos.</td></tr>';
       conteo.textContent = '';
@@ -99,14 +101,17 @@ function cargar(){
         '<td>' + esc(p.categoria) + '</td>' +
         '<td>' + esc(p.ubicacion) + '</td>' +
         '<td>' + etiquetaStock(p) + '</td>';
-      if (ES_ADMIN){ html += '<td>' + dinero(p.precio_compra) + '</td>'; }
+      if (ES_GESTOR){ html += '<td>' + dinero(p.precio_compra) + '</td>'; }
       html += '<td>' + dinero(p.precio_venta) + '</td>';
-      if (ES_ADMIN){
+      if (ES_GESTOR){
         html += '<td class="text-end text-nowrap">' +
-          '<a href="' + URL_EDITAR.replace('/0/', '/' + p.id + '/') + '" class="btn btn-sm btn-outline-secondary me-1" title="Editar"><i class="bi bi-pencil"></i></a>' +
-          '<form method="post" action="' + URL_ELIMINAR.replace('/0/', '/' + p.id + '/') + '" class="d-inline eliminar">' +
-          '<input type="hidden" name="csrfmiddlewaretoken" value="' + CSRF + '">' +
-          '<button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button></form></td>';
+          '<a href="' + URL_EDITAR.replace('/0/', '/' + p.id + '/') + '" class="btn btn-sm btn-outline-secondary me-1" title="Editar"><i class="bi bi-pencil"></i></a>';
+        if (ES_ADMIN){
+          html += '<form method="post" action="' + URL_ELIMINAR.replace('/0/', '/' + p.id + '/') + '" class="d-inline eliminar">' +
+            '<input type="hidden" name="csrfmiddlewaretoken" value="' + CSRF + '">' +
+            '<button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button></form>';
+        }
+        html += '</td>';
       }
       html += '</tr>';
     });
