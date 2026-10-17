@@ -24,7 +24,8 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
 .menu a.item:hover{background:#f4ebe6}
 .menu a.item.activo{background:#f0e4e2; font-weight:700; color:var(--vino)}
 .badge-n{margin-left:auto; background:#d93025; color:#fff; border-radius:12px; font-size:11px; padding:1px 7px}
-.usuario{margin-top:auto; background:#f6f1ea; border-radius:12px; padding:10px; display:flex; align-items:center; gap:10px; margin-bottom:10px}
+.usuario{margin-top:auto; background:#f6f1ea; border-radius:12px; padding:10px; display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--texto)}
+.usuario:hover{background:#f0e4e2; color:var(--texto)}
 .avatar{width:32px; height:32px; border-radius:50%; background:var(--vino); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0; overflow:hidden}
 .avatar img{width:100%; height:100%; object-fit:cover}
 .btn-salir{display:block; width:100%; text-align:center; border:1px solid var(--borde); background:#fff; border-radius:10px; padding:8px; font-size:13px; color:var(--texto); text-decoration:none}
@@ -76,21 +77,19 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
       {% if es_admin %}
       <a class="item" href="#"><i class="bi bi-people"></i> Clientes</a>
       <a class="item {% if activo == 'empleados' %}activo{% endif %}" href="{% url 'empleados' %}"><i class="bi bi-person-badge"></i> Empleados</a>
-      <a class="item {% if activo == 'codigo' %}activo{% endif %}" href="{% url 'codigo_admin' %}"><i class="bi bi-key"></i> Código admin</a>
       {% endif %}
       <a class="item" href="#"><i class="bi bi-exclamation-triangle"></i> Alertas</a>
       <a class="item {% if activo == 'perfil' %}activo{% endif %}" href="{% url 'perfil' %}"><i class="bi bi-person"></i> Perfil</a>
       <a class="item" href="#"><i class="bi bi-bell"></i> Notificaciones{% if alertas %}<span class="badge-n">{{ alertas }}</span>{% endif %}</a>
     </nav>
 
-    <div class="usuario">
+    <a class="usuario" href="{% url 'perfil' %}" title="Ir a mi perfil">
       <div class="avatar">{% if foto_url %}<img src="{{ foto_url }}" alt="Foto de perfil">{% else %}{{ inicial }}{% endif %}</div>
       <div>
         <b style="font-size:13px">{{ nombre }}</b><br>
         <small class="text-muted" style="font-size:11px">{{ rol }}</small>
       </div>
-    </div>
-    <a href="{% url 'logout' %}" class="btn-salir">Cerrar sesión</a>
+    </a>
   </aside>
 
   <div class="principal">
@@ -103,12 +102,6 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
     </header>
 
     <main class="contenido">
-      {% if not foto_url and activo != 'perfil' %}
-      <div id="aviso-foto" class="alert alert-light border d-flex align-items-center justify-content-between gap-2 py-2">
-        <span><i class="bi bi-camera" style="color:var(--vino)"></i> Agrega tu foto de perfil. <a href="{% url 'perfil' %}" style="color:var(--vino); font-weight:700">Ir a mi perfil</a></span>
-        <button type="button" id="cerrar-aviso-foto" class="btn-close" aria-label="Cerrar"></button>
-      </div>
-      {% endif %}
       {% for message in messages %}
         <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} py-2">{{ message }}</div>
       {% endfor %}
@@ -118,17 +111,6 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
     <footer class="pie">© {% now "Y" %} CampesinoStock · Agroferretería El Campesino</footer>
   </div>
 </div>
-<script>
-(function(){
-  var aviso = document.getElementById('aviso-foto');
-  if (!aviso) return;
-  try { if (sessionStorage.getItem('aviso_foto') === '1') { aviso.remove(); return; } } catch (e) {}
-  document.getElementById('cerrar-aviso-foto').addEventListener('click', function(){
-    try { sessionStorage.setItem('aviso_foto', '1'); } catch (e) {}
-    aviso.remove();
-  });
-})();
-</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

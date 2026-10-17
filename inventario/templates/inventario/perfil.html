@@ -22,7 +22,7 @@
 .nombre-perfil{font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:34px; line-height:1.1; margin:0}
 .rol-pill{display:inline-block; background:#f0e4e2; color:var(--vino); font-size:13px; font-weight:700; padding:3px 14px; border-radius:20px; margin-top:6px}
 .usuario-perfil{color:var(--suave); font-size:14px; margin-top:4px}
-.sugerencia-foto{color:var(--suave); font-size:13px; margin-top:10px}
+.aviso-foto{background:#fff3cd; border:1px solid #f2d27a; border-radius:14px; padding:14px 16px; margin-top:16px; font-size:14px}
 
 /* Grupos de opciones (estilo ajustes de WhatsApp) */
 .grupo{background:var(--panel); border:1px solid var(--borde); border-radius:16px; overflow:hidden; margin-bottom:16px}
@@ -54,6 +54,23 @@
 .campo-ojo i{position:absolute; right:14px; top:50%; transform:translateY(-50%); cursor:pointer; color:#777; font-size:18px}
 
 .zona-peligro{border:1px solid #e3b5b5; background:#fdf5f5; border-radius:12px; padding:14px; margin-top:14px}
+
+/* Foto en grande */
+.visor-foto{position:fixed; inset:0; background:rgba(0,0,0,.88); z-index:1100; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; cursor:zoom-out}
+.visor-foto[hidden]{display:none}
+.visor-foto-img{width:min(92vw, 520px); aspect-ratio:1/1; object-fit:cover; border-radius:22px; box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.visor-foto-nombre{color:#fff; font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:26px; margin-top:16px; text-align:center}
+.visor-cerrar{position:absolute; top:16px; right:16px; width:44px; height:44px; border-radius:50%; border:0; background:rgba(255,255,255,.18); color:#fff; font-size:20px; display:flex; align-items:center; justify-content:center}
+.visor-cerrar:hover{background:rgba(255,255,255,.3)}
+
+/* Cámara en vivo (computadora) */
+.visor-camara{position:fixed; inset:0; background:rgba(0,0,0,.65); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px}
+.visor-camara[hidden]{display:none}
+.visor-caja{background:#fff; border-radius:18px; padding:16px; width:100%; max-width:420px; box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.visor-titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:24px; margin-bottom:10px}
+.visor-video{aspect-ratio:1/1; overflow:hidden; border-radius:14px; background:#000}
+.visor-video video{width:100%; height:100%; object-fit:cover; transform:scaleX(-1)}
+.visor-acciones{display:flex; gap:10px; justify-content:center; margin-top:14px; flex-wrap:wrap}
 </style>
 {% endblock %}
 
@@ -66,32 +83,49 @@
     <input type="hidden" name="accion" value="foto">
     <input type="file" id="input-foto" name="foto" accept="image/*">
   </form>
-  <form id="form-quitar" method="post" hidden>
-    {% csrf_token %}
-    <input type="hidden" name="accion" value="quitar_foto">
-  </form>
 
   <!-- Cabecera -->
   <div class="cabecera">
     <div class="foto-box">
-      <div class="foto">{% if foto_url %}<img src="{{ foto_url }}" alt="Foto de perfil">{% else %}{{ inicial }}{% endif %}</div>
+      <div class="foto"{% if foto_url %} id="foto-principal" role="button" tabindex="0" aria-label="Ver foto en grande" style="cursor:zoom-in"{% endif %}>{% if foto_url %}<img src="{{ foto_url }}" alt="Foto de perfil">{% else %}{{ inicial }}{% endif %}</div>
       <button type="button" class="btn-camara" id="btn-camara" aria-label="Cambiar foto"><i class="bi bi-camera-fill"></i></button>
       <div class="menu-foto" id="menu-foto">
         <button type="button" id="op-camara"><i class="bi bi-camera"></i> Tomar foto</button>
         <button type="button" id="op-galeria"><i class="bi bi-image"></i> Elegir de la galería</button>
-        {% if foto_url %}
-        <button type="submit" form="form-quitar" class="peligro"><i class="bi bi-trash3"></i> Quitar foto</button>
-        {% endif %}
       </div>
     </div>
     <h2 class="nombre-perfil">{{ empleado.nombre }} {{ empleado.apellido }}</h2>
     <span class="rol-pill">{{ rol }}</span>
     <div class="usuario-perfil">@{{ empleado.usuario }}</div>
-    {% if not foto_url %}<div class="sugerencia-foto">Toca la cámara para agregar tu foto. Es opcional.</div>{% endif %}
+    {% if not foto_url %}
+    <div class="aviso-foto">
+      <b>Tu foto de perfil es obligatoria.</b><br>
+      Agrégala para poder usar la aplicación.
+      <button type="button" class="btn btn-vino mt-2" id="btn-agregar-foto"><i class="bi bi-camera-fill"></i> Agregar foto</button>
+    </div>
+    {% endif %}
   </div>
 
+  {% if foto_url %}
   <!-- Mi cuenta -->
   <div class="grupo">
+    <details class="fila">
+      <summary>
+        <span class="ico"><i class="bi bi-person-vcard"></i></span>
+        <span class="txt"><b>Información de la cuenta</b><small>Tus datos y tu rol en el sistema</small></span>
+        <i class="bi bi-chevron-right flecha"></i>
+      </summary>
+      <div class="panel-fila">
+        <div class="dato-cuenta"><span>Nombre</span><span>{{ empleado.nombre }} {{ empleado.apellido }}</span></div>
+        <div class="dato-cuenta"><span>Usuario</span><span>{{ empleado.usuario }}</span></div>
+        <div class="dato-cuenta"><span>Rol</span><span>{{ rol }}</span></div>
+        <div class="dato-cuenta"><span>Correo</span><span>{{ empleado.correo }}</span></div>
+        <div class="dato-cuenta"><span>Teléfono</span><span>{{ empleado.telefono }}</span></div>
+        <div class="dato-cuenta"><span>Dirección</span><span>{{ empleado.direccion }}</span></div>
+        <div class="dato-cuenta"><span>Estado</span><span>{% if empleado.activo %}Activa{% else %}Inactiva{% endif %}</span></div>
+      </div>
+    </details>
+
     <details class="fila" {% if abrir == 'editar' %}open{% endif %}>
       <summary>
         <span class="ico"><i class="bi bi-pencil-square"></i></span>
@@ -150,23 +184,6 @@
         </form>
       </div>
     </details>
-
-    <details class="fila">
-      <summary>
-        <span class="ico"><i class="bi bi-person-vcard"></i></span>
-        <span class="txt"><b>Información de la cuenta</b><small>Tus datos y tu rol en el sistema</small></span>
-        <i class="bi bi-chevron-right flecha"></i>
-      </summary>
-      <div class="panel-fila">
-        <div class="dato-cuenta"><span>Nombre</span><span>{{ empleado.nombre }} {{ empleado.apellido }}</span></div>
-        <div class="dato-cuenta"><span>Usuario</span><span>{{ empleado.usuario }}</span></div>
-        <div class="dato-cuenta"><span>Rol</span><span>{{ rol }}</span></div>
-        <div class="dato-cuenta"><span>Correo</span><span>{{ empleado.correo }}</span></div>
-        <div class="dato-cuenta"><span>Teléfono</span><span>{{ empleado.telefono }}</span></div>
-        <div class="dato-cuenta"><span>Dirección</span><span>{{ empleado.direccion }}</span></div>
-        <div class="dato-cuenta"><span>Estado</span><span>{% if empleado.activo %}Activa{% else %}Inactiva{% endif %}</span></div>
-      </div>
-    </details>
   </div>
 
   <!-- Seguridad -->
@@ -178,10 +195,21 @@
         <i class="bi bi-chevron-right flecha"></i>
       </summary>
       <div class="panel-fila">
+        <div class="dato-cuenta"><span>Acceso anterior</span><span>{% if acceso_anterior %}{{ acceso_anterior|date:"d/m/Y H:i" }}{% else %}Es tu primer inicio de sesión{% endif %}</span></div>
+        <div class="dato-cuenta"><span>Protección de acceso</span><span>Bloqueo de 15 min tras 5 intentos fallidos</span></div>
+        <div class="dato-cuenta"><span>Contraseña</span><span><a href="#" id="ir-password" style="color:var(--vino); font-weight:600">Cambiar contraseña</a></span></div>
+
+        <form method="post" class="mt-3" onsubmit="return confirm('Se cerrará tu sesión en todos los demás dispositivos. ¿Continuar?')">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="cerrar_otras">
+          <button class="btn btn-outline-secondary w-100" style="border-radius:30px"><i class="bi bi-phone"></i> Cerrar sesión en los demás dispositivos</button>
+          <small class="text-muted d-block mt-1">Úsalo si iniciaste sesión en un equipo que no es tuyo.</small>
+        </form>
+
         {% if es_admin %}
-        <p class="small text-muted mb-2">Con tu rol de administrador puedes gestionar las cuentas del sistema y el código de autorización desde la sección <b>Administración</b>.</p>
+        <p class="small text-muted mt-3 mb-0">Con tu rol de administrador gestionas el código de autorización desde la sección <b>Administración</b>, y las cuentas desde <b>Empleados</b> en el menú.</p>
         {% else %}
-        <p class="small text-muted mb-2">Tu rol no incluye configuraciones administrativas. Para proteger tu cuenta puedes cambiar tu contraseña cuando quieras.</p>
+        <p class="small text-muted mt-3 mb-0">Tu rol no incluye configuraciones administrativas.</p>
         {% endif %}
 
         <div class="zona-peligro">
@@ -210,12 +238,9 @@
       <span class="txt"><b>Código de autorización</b><small>Define o cambia el código para crear administradores</small></span>
       <i class="bi bi-chevron-right flecha"></i>
     </a>
-    <a class="fila-link" href="{% url 'empleados' %}">
-      <span class="ico"><i class="bi bi-person-badge"></i></span>
-      <span class="txt"><b>Gestión de cuentas</b><small>Empleados, roles y estado de las cuentas</small></span>
-      <i class="bi bi-chevron-right flecha"></i>
-    </a>
   </div>
+  {% endif %}
+
   {% endif %}
 
   <!-- Cerrar sesión -->
@@ -224,6 +249,28 @@
       <span class="ico"><i class="bi bi-box-arrow-right"></i></span>
       <span class="txt"><b>Cerrar sesión</b><small>Salir de tu cuenta de forma segura</small></span>
     </a>
+  </div>
+
+  {% if foto_url %}
+  <!-- Foto en grande -->
+  <div id="visor-foto" class="visor-foto" hidden>
+    <button type="button" class="visor-cerrar" id="cerrar-visor-foto" aria-label="Cerrar"><i class="bi bi-x-lg"></i></button>
+    <img src="{{ foto_url }}" alt="Foto de perfil" class="visor-foto-img">
+    <div class="visor-foto-nombre">{{ empleado.nombre }} {{ empleado.apellido }}</div>
+  </div>
+  {% endif %}
+
+  <!-- Cámara en vivo -->
+  <div id="visor-camara" class="visor-camara" hidden>
+    <div class="visor-caja">
+      <div class="visor-titulo">Tomar foto</div>
+      <div class="visor-video"><video id="video-camara" autoplay playsinline muted></video></div>
+      <canvas id="lienzo-camara" hidden></canvas>
+      <div class="visor-acciones">
+        <button type="button" class="btn btn-vino" id="btn-capturar"><i class="bi bi-camera-fill"></i> Capturar</button>
+        <button type="button" class="btn btn-outline-secondary" style="border-radius:30px" id="btn-cancelar-camara">Cancelar</button>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -241,15 +288,88 @@ document.getElementById('btn-camara').addEventListener('click', function(e){
   e.stopPropagation();
   alternarMenuFoto();
 });
-document.getElementById('btn-cambiar-foto').addEventListener('click', function(e){
+function abrirMenuDesdeBoton(e){
   e.stopPropagation();
   window.scrollTo({top: 0, behavior: 'smooth'});
   menu.classList.add('abierto');
+}
+['btn-cambiar-foto', 'btn-agregar-foto'].forEach(function(id){
+  var boton = document.getElementById(id);
+  if (boton) boton.addEventListener('click', abrirMenuDesdeBoton);
 });
-document.getElementById('op-camara').addEventListener('click', function(){
+/* "Tomar foto": en computadora abre la cámara en vivo; en celular usa la cámara del teléfono */
+var esTactil = window.matchMedia('(pointer: coarse)').matches;
+var hayCamaraWeb = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && window.isSecureContext;
+var flujo = null;
+var visor = document.getElementById('visor-camara');
+var video = document.getElementById('video-camara');
+
+function usarCamaraNativa(){
   input.setAttribute('capture', 'user');
-  menu.classList.remove('abierto');
   input.click();
+}
+
+function abrirCamara(){
+  navigator.mediaDevices.getUserMedia({
+    video: {facingMode: 'user', width: {ideal: 1280}, height: {ideal: 720}},
+    audio: false
+  }).then(function(stream){
+    flujo = stream;
+    video.srcObject = stream;
+    visor.hidden = false;
+  }).catch(function(error){
+    if (error && error.name === 'NotAllowedError'){
+      alert('No diste permiso para usar la cámara. Actívalo en el candado de la barra de direcciones y vuelve a intentarlo.');
+    } else if (error && error.name === 'NotFoundError'){
+      alert('No se encontró ninguna cámara en este equipo.');
+    } else {
+      usarCamaraNativa();
+    }
+  });
+}
+
+function cerrarCamara(){
+  if (flujo){
+    flujo.getTracks().forEach(function(pista){ pista.stop(); });
+    flujo = null;
+  }
+  video.srcObject = null;
+  visor.hidden = true;
+}
+
+function capturar(){
+  var lado = Math.min(video.videoWidth, video.videoHeight);
+  if (!lado) return;
+  var lienzo = document.getElementById('lienzo-camara');
+  var tam = Math.min(lado, 720);
+  lienzo.width = tam;
+  lienzo.height = tam;
+  var x = (video.videoWidth - lado) / 2;
+  var y = (video.videoHeight - lado) / 2;
+  lienzo.getContext('2d').drawImage(video, x, y, lado, lado, 0, 0, tam, tam);
+  lienzo.toBlob(function(blob){
+    if (!blob) return;
+    var archivo = new File([blob], 'foto.jpg', {type: 'image/jpeg'});
+    var lista = new DataTransfer();
+    lista.items.add(archivo);
+    input.files = lista.files;
+    cerrarCamara();
+    document.getElementById('form-foto').submit();
+  }, 'image/jpeg', 0.9);
+}
+
+document.getElementById('op-camara').addEventListener('click', function(){
+  menu.classList.remove('abierto');
+  if (!esTactil && hayCamaraWeb){
+    abrirCamara();
+  } else {
+    usarCamaraNativa();
+  }
+});
+document.getElementById('btn-capturar').addEventListener('click', capturar);
+document.getElementById('btn-cancelar-camara').addEventListener('click', cerrarCamara);
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape' && !visor.hidden) cerrarCamara();
 });
 document.getElementById('op-galeria').addEventListener('click', function(){
   input.removeAttribute('capture');
@@ -283,6 +403,44 @@ document.querySelectorAll('.campo-ojo i').forEach(function(icono){
     }
   });
 });
+
+/* ===== Ver la foto en grande ===== */
+var fotoPrincipal = document.getElementById('foto-principal');
+var visorFoto = document.getElementById('visor-foto');
+if (fotoPrincipal && visorFoto){
+  function abrirVisorFoto(){
+    visorFoto.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+  function cerrarVisorFoto(){
+    visorFoto.hidden = true;
+    document.body.style.overflow = '';
+  }
+  fotoPrincipal.addEventListener('click', abrirVisorFoto);
+  fotoPrincipal.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); abrirVisorFoto(); }
+  });
+  visorFoto.addEventListener('click', cerrarVisorFoto);
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && !visorFoto.hidden) cerrarVisorFoto();
+  });
+}
+
+/* ===== Atajo a "Cambiar contraseña" desde Seguridad ===== */
+var atajo = document.getElementById('ir-password');
+if (atajo){
+  atajo.addEventListener('click', function(e){
+    e.preventDefault();
+    var destino = Array.from(document.querySelectorAll('details.fila')).find(function(d){
+      var titulo = d.querySelector('summary b');
+      return titulo && titulo.textContent.trim() === 'Cambiar contraseña';
+    });
+    if (destino){
+      destino.open = true;
+      destino.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+  });
+}
 
 /* ===== Solo una sección abierta a la vez ===== */
 var secciones = document.querySelectorAll('details.fila');

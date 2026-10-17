@@ -45,6 +45,10 @@ class Empleados(models.Model):
     rol = models.CharField(max_length=20, default='Empleado')
     activo = models.BooleanField(default=True)
     foto = models.ImageField(upload_to='perfiles/', null=True, blank=True)
+    ultimo_acceso = models.DateTimeField(null=True, blank=True)
+    sesion_version = models.IntegerField(default=0)
+    intentos_fallidos = models.IntegerField(default=0)
+    bloqueado_hasta = models.DateTimeField(null=True, blank=True)
     class Meta:
         db_table = 'empleados'
 

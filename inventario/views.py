@@ -3,6 +3,7 @@ import logging
 import re
 import secrets
 import time
+from datetime import timedelta
 from functools import wraps
 from io import BytesIO
 from uuid import uuid4
@@ -19,6 +20,7 @@ from django.db.models import DecimalField, F, Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from PIL import Image, ImageOps, UnidentifiedImageError
 from requests.exceptions import RequestException
 from twilio.base.exceptions import TwilioException
@@ -83,10 +85,15 @@ def login_requerido(vista):
     @wraps(vista)
     def envoltura(request, *args, **kwargs):
         emp = Empleados.objects.filter(id_empleado=request.session.get('empleado_id')).first()
-        if emp is None or not emp.activo:
+        if (emp is None or not emp.activo
+                or request.session.get('sesion_version') != emp.sesion_version):
             request.session.flush()
             return redirect('login')
         request.empleado = emp
+        # La foto de perfil es obligatoria: sin foto, solo se puede entrar al perfil.
+        if not emp.foto and request.resolver_match.url_name != 'perfil':
+            messages.warning(request, 'Para continuar, agrega tu foto de perfil.')
+            return redirect('perfil')
         return vista(request, *args, **kwargs)
     return envoltura
 
@@ -253,27 +260,56 @@ def sugerir_usuario(request):
     return JsonResponse({'sugerencias': sugerencias, 'base': base, 'ocupado': ocupado})
 
 
+MAX_INTENTOS = 5
+MINUTOS_BLOQUEO = 15
+
+
 def login_view(request):
     if request.method == 'POST':
-        try:
-            dato = request.POST.get('usuario', '').strip()
-            emp = (Empleados.objects.filter(usuario=dato).first()
-                   or Empleados.objects.filter(correo__iexact=dato).first())
-            if emp is None:
-                raise ValueError('Usuario no encontrado')
-            password = request.POST.get('password', '')
-            if not check_password(password, emp.password):
-                if not hmac.compare_digest(password, emp.password):
-                    raise ValueError('Contraseña incorrecta')
-                emp.password = make_password(password)
-                emp.save(update_fields=['password'])
-            if not emp.activo:
-                return render(request, 'inventario/login.html', {
-                    'error': 'Tu cuenta está desactivada. Habla con el administrador.'})
-            request.session['empleado_id'] = emp.id_empleado
-            return redirect('dashboard')
-        except ValueError:
-            return render(request, 'inventario/login.html', {'error': 'Usuario o contraseña incorrectos'})
+        dato = request.POST.get('usuario', '').strip()
+        password = request.POST.get('password', '')
+        emp = (Empleados.objects.filter(usuario=dato).first()
+               or Empleados.objects.filter(correo__iexact=dato).first())
+
+        def error(texto):
+            return render(request, 'inventario/login.html', {'error': texto})
+
+        ahora = timezone.now()
+        if emp is not None and emp.bloqueado_hasta and emp.bloqueado_hasta > ahora:
+            minutos = int((emp.bloqueado_hasta - ahora).total_seconds() // 60) + 1
+            return error(f'Demasiados intentos fallidos. Intenta de nuevo en {minutos} minuto(s).')
+
+        clave_ok = False
+        if emp is not None:
+            if check_password(password, emp.password):
+                clave_ok = True
+            elif hmac.compare_digest(password.encode(), emp.password.encode()):
+                emp.password = make_password(password)  # contraseña antigua sin cifrar
+                clave_ok = True
+
+        if not clave_ok:
+            if emp is not None:
+                emp.intentos_fallidos += 1
+                if emp.intentos_fallidos >= MAX_INTENTOS:
+                    emp.bloqueado_hasta = ahora + timedelta(minutes=MINUTOS_BLOQUEO)
+                    emp.intentos_fallidos = 0
+                emp.save(update_fields=['intentos_fallidos', 'bloqueado_hasta'])
+            return error('Usuario o contraseña incorrectos')
+
+        if not emp.activo:
+            return error('Tu cuenta está desactivada. Habla con el administrador.')
+
+        anterior = emp.ultimo_acceso
+        emp.intentos_fallidos = 0
+        emp.bloqueado_hasta = None
+        emp.ultimo_acceso = ahora
+        emp.save(update_fields=['password', 'intentos_fallidos', 'bloqueado_hasta', 'ultimo_acceso'])
+
+        request.session.cycle_key()
+        request.session['empleado_id'] = emp.id_empleado
+        request.session['sesion_version'] = emp.sesion_version
+        request.session['acceso_anterior'] = anterior.isoformat() if anterior else ''
+        return redirect('dashboard')
     return render(request, 'inventario/login.html')
 
 
@@ -425,7 +461,11 @@ def restablecer(request):
             return render(request, 'inventario/restablecer.html', {'error': error_pw})
 
         empleado.password = make_password(password)
-        empleado.save(update_fields=['password'])
+        empleado.sesion_version += 1
+        empleado.intentos_fallidos = 0
+        empleado.bloqueado_hasta = None
+        empleado.save(update_fields=['password', 'sesion_version',
+                                     'intentos_fallidos', 'bloqueado_hasta'])
         request.session.pop('empleado_recuperar_id', None)
         request.session.pop('recuperacion_verificada', None)
         request.session.pop('correo_recuperacion_error', None)
@@ -707,6 +747,9 @@ class EmpleadoForm(forms.ModelForm):
         p1 = self.cleaned_data.get('password1')
         if p1:
             emp.password = make_password(p1)
+            emp.sesion_version = (emp.sesion_version or 0) + 1
+            emp.intentos_fallidos = 0
+            emp.bloqueado_hasta = None
         if commit:
             emp.save()
         return emp
@@ -892,10 +935,11 @@ def perfil(request):
                     messages.success(request, 'Tu foto de perfil se actualizó.')
             return redirect('perfil')
 
-        elif accion == 'quitar_foto':
-            if emp.foto:
-                emp.foto.delete(save=True)
-                messages.success(request, 'Se quitó tu foto de perfil.')
+        elif accion == 'cerrar_otras':
+            emp.sesion_version += 1
+            emp.save(update_fields=['sesion_version'])
+            request.session['sesion_version'] = emp.sesion_version
+            messages.success(request, 'Se cerró tu sesión en los demás dispositivos.')
             return redirect('perfil')
 
         elif accion == 'password':
@@ -912,8 +956,11 @@ def perfil(request):
                     messages.error(request, error_pw)
                 else:
                     emp.password = make_password(p1)
-                    emp.save(update_fields=['password'])
-                    messages.success(request, 'Tu contraseña se cambió correctamente.')
+                    emp.sesion_version += 1
+                    emp.save(update_fields=['password', 'sesion_version'])
+                    request.session['sesion_version'] = emp.sesion_version
+                    messages.success(request, 'Tu contraseña se cambió correctamente. '
+                                              'Se cerró tu sesión en los demás dispositivos.')
             return redirect('perfil')
 
         elif accion == 'eliminar':
@@ -936,8 +983,11 @@ def perfil(request):
                 return redirect('login')
             return redirect('perfil')
 
+    crudo = request.session.get('acceso_anterior', '')
+    acceso_anterior = parse_datetime(crudo) if crudo else None
     return render(request, 'inventario/perfil.html', contexto(
-        request, 'perfil', form=form, empleado=emp, abrir=abrir))
+        request, 'perfil', form=form, empleado=emp, abrir=abrir,
+        acceso_anterior=acceso_anterior))
 
 
 # ---------------------------------------------------------------
