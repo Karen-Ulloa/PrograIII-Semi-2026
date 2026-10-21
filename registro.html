@@ -1,0 +1,111 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Registro de Usuarios</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #edf2f7;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .caja {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            width: 350px;
+            box-shadow: 0 4px 15px #0002;
+        }
+
+        h2 {
+            text-align: center;
+            color: #2457a7;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            background: #2457a7;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        a {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: #2457a7;
+            text-decoration: none;
+        }
+
+        #mensaje {
+            text-align: center;
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="caja">
+
+        <h2>Registro de Usuarios</h2>
+
+        <form id="formRegistro">
+
+            <input type="text" id="usuario"
+                   placeholder="Nombre de usuario"
+                   maxlength="35" required>
+
+            <input type="password" id="clave"
+                   placeholder="Contraseña"
+                   maxlength="35" required>
+
+            <input type="text" id="nombre"
+                   placeholder="Nombre completo"
+                   maxlength="85" required>
+
+            <input type="text" id="direccion"
+                   placeholder="Dirección"
+                   maxlength="100" required>
+
+            <input type="tel" id="telefono"
+                   placeholder="Teléfono"
+                   maxlength="9" required>
+
+            <button type="submit">
+                Registrarse
+            </button>
+
+        </form>
+
+        <p id="mensaje"></p>
+
+        <a href="/">Volver al inicio de sesión</a>
+
+    </div>
+
+    <script src="/app.js"></script>
+
+</body>
+</html>

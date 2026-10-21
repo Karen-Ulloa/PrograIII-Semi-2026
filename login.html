@@ -1,0 +1,108 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Inicio de Sesión</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #edf2f7;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .caja {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            width: 320px;
+            box-shadow: 0 4px 15px #0002;
+            text-align: center;
+        }
+
+        h2 {
+            color: #2457a7;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            background: #2457a7;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #183e7a;
+        }
+
+        a {
+            color: #2457a7;
+            text-decoration: none;
+        }
+
+        #mensaje {
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="caja">
+
+        <h2>Inicio de Sesión</h2>
+
+        <form id="formLogin">
+
+            <input
+                type="text"
+                id="usuario"
+                placeholder="Ingrese su usuario"
+                maxlength="35"
+                required
+            >
+
+            <input
+                type="password"
+                id="clave"
+                placeholder="Ingrese su contraseña"
+                required
+            >
+
+            <button type="submit">
+                Ingresar
+            </button>
+
+        </form>
+
+        <p id="mensaje"></p>
+
+        <p>¿No tienes una cuenta?</p>
+
+        <a href="/registro">Registrarse</a>
+
+    </div>
+
+    <script src="/app.js"></script>
+
+</body>
+</html>

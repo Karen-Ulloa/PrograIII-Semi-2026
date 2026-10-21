@@ -1,70 +1,75 @@
-from http.server import HTTPServer, SimpleHTTPRequestHandler
-from urllib import parse
-from urllib.parse import urlparse, parse_qs
-import json
-import crud_clientes
-import crud_tarifas
-import crud_periodos
 
-port = 3000
-crudClientes = crud_clientes.crud_clientes()
-crudTarifas = crud_tarifas.crudTarifas()
-crudPeriodos = crud_periodos.crudPeriodos()
+from flask import Flask, request, jsonify, send_from_directory, session, redirect
+from crud_usuarios_USSS025925 import crud_usuarios_USSS025925
+import secrets
 
-class miServidor(SimpleHTTPRequestHandler):
-    def do_POST(self):
-        longitud = int(self.headers['Content-Length'])
-        datos = self.rfile.read(longitud)
-        datos = datos.decode("utf-8")
-        datos = parse.unquote(datos)
-        datos = json.loads(datos)
-        urlParse = urlparse(self.path)
+app = Flask(__name__)
+app.secret_key = secrets.token_hex(32)
 
-    
-        if urlParse.path == "/periodo":
-            respuesta = {'msg': crudPeriodos.guardar(datos)}
-        elif urlParse.path == "/calcular":
-            calc, msg = crudTarifas.calcular(datos['balance'])
-            if calc:
-                respuesta = calc
-            else:
-                respuesta = {'msg': msg}
-        else:
-        
-            respuesta = {'msg': crudClientes.administrar(datos)}
+@app.route("/")
+def inicio():
+    return send_from_directory(".", "login.html")
 
-        self.send_response(200)
-        self.send_header("Content-type","application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps(respuesta).encode("utf-8"))
+@app.route("/registro")
+def pagina_registro():
+    return send_from_directory(".", "registro.html")
 
-    def do_GET(self):
-        urlParse = urlparse(self.path)
-        qs = parse_qs(urlParse.query)
+@app.route("/index.html")
+def pagina_usuarios():
+    if "usuario" not in session:
+        return redirect("/")
+    return send_from_directory(".", "index.html")
 
-        if urlParse.path == "/clientes":
-            buscar = qs.get('buscar', [''])[0]
-            print(buscar)
-            datos = crudClientes.consultar(buscar)
-            self.send_response(200)
-            self.send_header("Content-type","text/json")
-            self.end_headers()
-            self.wfile.write(json.dumps(datos).encode("utf-8"))
+@app.route("/app.js")
+def javascript():
+    return send_from_directory(".", "app.js")
 
-        # ESTO ES LO NUEVO QUE AGREGAS
-        elif urlParse.path == "/periodos":
-            datos = crudPeriodos.consultar()
-            self.send_response(200)
-            self.send_header("Content-type","text/json")
-            self.end_headers()
-            self.wfile.write(json.dumps(datos, default=str).encode("utf-8"))
+@app.route("/registrar", methods=["POST"])
+def registrar():
+    datos = request.get_json()
+    resultado = crud_usuarios_USSS025925("registrar", datos)
+    return jsonify(resultado)
 
-        elif self.path == "/":
-            self.path = "/index.html"
-            return SimpleHTTPRequestHandler.do_GET(self)
+@app.route("/login", methods=["POST"])
+def login():
+    datos = request.get_json()
+    resultado = crud_usuarios_USSS025925("login", datos)
 
-        else:
-            return SimpleHTTPRequestHandler.do_GET(self)
+    if resultado["acceso"]:
+        session["usuario"] = resultado["idUsuario"]
 
-print(f"Servidor corriendo en el puerto {port}")
-HTTPServer(("localhost", port), miServidor).serve_forever()
+    return jsonify(resultado)
+
+@app.route("/buscar")
+def buscar():
+    if "usuario" not in session:
+        return jsonify({"error": "Acceso denegado"}), 401
+
+    resultado = crud_usuarios_USSS025925("buscar")
+    return jsonify(resultado)
+
+@app.route("/editar", methods=["POST"])
+def editar():
+    if "usuario" not in session:
+        return jsonify({"error": "Acceso denegado"}), 401
+
+    datos = request.get_json()
+    resultado = crud_usuarios_USSS025925("editar", datos)
+    return jsonify(resultado)
+
+@app.route("/eliminar", methods=["POST"])
+def eliminar():
+    if "usuario" not in session:
+        return jsonify({"error": "Acceso denegado"}), 401
+
+    datos = request.get_json()
+    resultado = crud_usuarios_USSS025925("eliminar", datos)
+    return jsonify(resultado)
+
+@app.route("/salir")
+def salir():
+    session.clear()
+    return redirect("/")
+
+if __name__ == "__main__":
+    app.run(debug=True, port=3000)
