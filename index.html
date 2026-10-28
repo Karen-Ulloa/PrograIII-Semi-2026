@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Administración de Usuarios</title>
+
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -72,6 +73,7 @@
         }
     </style>
 </head>
+
 <body>
 
 <div class="contenedor">
@@ -134,6 +136,38 @@
             <tbody id="listaUsuarios"></tbody>
         </table>
     </div>
+
+</div>
+
+<div class="contenedor" id="seccionCambiarClave"
+     style="margin-top: 20px; display: none;">
+
+    <h3>Cambiar contraseña</h3>
+
+    <p id="usuarioSeleccionado"></p>
+
+    <form id="formCambiarClave">
+
+        <input type="password"
+               id="claveActual"
+               placeholder="Contraseña actual"
+               maxlength="35"
+               required>
+
+        <input type="password"
+               id="claveNueva"
+               placeholder="Nueva contraseña"
+               minlength="6"
+               maxlength="35"
+               required>
+
+        <button type="submit">
+            Cambiar contraseña
+        </button>
+
+    </form>
+
+    <p id="mensajeClave"></p>
 
 </div>
 

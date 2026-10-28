@@ -1,7 +1,8 @@
 
 let usuarios = [];
 
-// ENVIAR DATOS A PYTHON
+
+// ENVIAR DATOS AL SERVIDOR
 async function enviar(ruta, datos) {
     const respuesta = await fetch(ruta, {
         method: "POST",
@@ -13,14 +14,15 @@ async function enviar(ruta, datos) {
 
     const resultado = await respuesta.json();
 
-    if (!respuesta.ok) {
+    if (!respuesta.ok || resultado.error) {
         throw new Error(resultado.error || "Ocurrió un error");
     }
 
     return resultado;
 }
 
-// OBTENER DATOS DEL FORMULARIO
+
+// OBTENER DATOS
 function obtenerDatos() {
     return {
         usuario: document.getElementById("usuario").value,
@@ -30,7 +32,8 @@ function obtenerDatos() {
     };
 }
 
-// REGISTRAR DESDE REGISTRO.HTML
+
+// REGISTRO
 const formRegistro = document.getElementById("formRegistro");
 
 if (formRegistro) {
@@ -45,12 +48,14 @@ if (formRegistro) {
             alert(resultado.mensaje);
             window.location.href = "/";
         } catch (error) {
-            document.getElementById("mensaje").textContent = error.message;
+            document.getElementById("mensaje").textContent =
+                error.message;
         }
     });
 }
 
-// INICIO DE SESIÓN
+
+// LOGIN
 const formLogin = document.getElementById("formLogin");
 
 if (formLogin) {
@@ -72,12 +77,14 @@ if (formLogin) {
                     "Usuario o contraseña incorrectos";
             }
         } catch (error) {
-            document.getElementById("mensaje").textContent = error.message;
+            document.getElementById("mensaje").textContent =
+                error.message;
         }
     });
 }
 
-// GUARDAR Y EDITAR USUARIOS
+
+// REGISTRAR O EDITAR
 const formUsuario = document.getElementById("formUsuario");
 
 if (formUsuario) {
@@ -96,8 +103,8 @@ if (formUsuario) {
             } else {
                 datos.clave = document.getElementById("clave").value;
 
-                if (!datos.clave) {
-                    alert("Ingresa una contraseña");
+                if (!datos.clave || datos.clave.length < 6) {
+                    alert("La contraseña debe tener al menos 6 caracteres");
                     return;
                 }
 
@@ -106,7 +113,7 @@ if (formUsuario) {
 
             alert(resultado.mensaje);
             limpiar();
-            cargarUsuarios();
+            await cargarUsuarios();
 
         } catch (error) {
             alert(error.message);
@@ -116,7 +123,8 @@ if (formUsuario) {
     cargarUsuarios();
 }
 
-// CONSULTAR USUARIOS
+
+// CARGAR USUARIOS
 async function cargarUsuarios() {
     try {
         const respuesta = await fetch("/buscar");
@@ -133,7 +141,8 @@ async function cargarUsuarios() {
     }
 }
 
-// MOSTRAR USUARIOS EN LA TABLA
+
+// MOSTRAR TABLA
 function mostrarUsuarios(lista) {
     const tabla = document.getElementById("listaUsuarios");
     tabla.innerHTML = "";
@@ -172,7 +181,8 @@ function mostrarUsuarios(lista) {
     });
 }
 
-// BUSCAR USUARIOS POR NOMBRE
+
+// FILTRAR
 function filtrarUsuarios() {
     const texto = document.getElementById("filtro").value.toLowerCase();
 
@@ -184,9 +194,12 @@ function filtrarUsuarios() {
     mostrarUsuarios(filtrados);
 }
 
+
 // EDITAR USUARIO
 function editarUsuario(id) {
-    const u = usuarios.find(x => x.idUsuario === id);
+    const u = usuarios.find(
+        x => String(x.idUsuario) === String(id)
+    );
 
     if (!u) return;
 
@@ -196,10 +209,22 @@ function editarUsuario(id) {
     document.getElementById("direccion").value = u.direccion;
     document.getElementById("telefono").value = u.telefono;
 
+    document.getElementById("clave").value = "";
+    document.getElementById("clave").style.display = "none";
+
+    document.getElementById("seccionCambiarClave").style.display = "block";
+
+    document.getElementById("usuarioSeleccionado").textContent =
+        "Usuario seleccionado: " + u.usuario;
+
+    document.getElementById("formCambiarClave").reset();
+    document.getElementById("mensajeClave").textContent = "";
+
     window.scrollTo(0, 0);
 }
 
-// ELIMINAR USUARIO
+
+// ELIMINAR
 async function eliminarUsuario(id) {
     if (!confirm("¿Deseas eliminar este usuario?")) {
         return;
@@ -211,15 +236,62 @@ async function eliminarUsuario(id) {
         });
 
         alert(resultado.mensaje);
-        cargarUsuarios();
+        limpiar();
+        await cargarUsuarios();
 
     } catch (error) {
         alert(error.message);
     }
 }
 
-// LIMPIAR FORMULARIO
+
+// LIMPIAR
 function limpiar() {
     document.getElementById("formUsuario").reset();
     document.getElementById("idUsuario").value = "";
+
+    document.getElementById("clave").style.display = "";
+
+    document.getElementById("seccionCambiarClave").style.display = "none";
+
+    document.getElementById("formCambiarClave").reset();
+    document.getElementById("mensajeClave").textContent = "";
+    document.getElementById("usuarioSeleccionado").textContent = "";
+}
+
+
+// CAMBIAR CONTRASEÑA
+const formCambiarClave = document.getElementById("formCambiarClave");
+
+if (formCambiarClave) {
+    formCambiarClave.addEventListener("submit", async function(e) {
+        e.preventDefault();
+
+        const id = document.getElementById("idUsuario").value;
+        const claveActual = document.getElementById("claveActual").value;
+        const claveNueva = document.getElementById("claveNueva").value;
+        const mensaje = document.getElementById("mensajeClave");
+
+        if (!id) {
+            mensaje.textContent = "Selecciona un usuario primero";
+            return;
+        }
+
+        try {
+            const resultado = await enviar("/cambiar_clave", {
+                idUsuario: id,
+                clave_actual: claveActual,
+                clave_nueva: claveNueva
+            });
+
+            mensaje.style.color = "green";
+            mensaje.textContent = resultado.mensaje;
+
+            formCambiarClave.reset();
+
+        } catch (error) {
+            mensaje.style.color = "red";
+            mensaje.textContent = error.message;
+        }
+    });
 }
