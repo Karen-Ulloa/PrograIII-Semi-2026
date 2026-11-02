@@ -146,3 +146,5 @@ TWILIO_DEFAULT_COUNTRY_CODE = os.environ.get('TWILIO_DEFAULT_COUNTRY_CODE', '+50
 DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
