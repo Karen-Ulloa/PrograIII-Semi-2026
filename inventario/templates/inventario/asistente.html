@@ -1,0 +1,150 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Asistente IA - CampesinoStock{% endblock %}
+{% block encabezado %}Asistente IA{% endblock %}
+
+{% block extra_css %}
+<style>
+.chat-wrap{max-width:820px; margin:0 auto; display:flex; flex-direction:column; height:calc(100vh - 200px); height:calc(100dvh - 200px); min-height:420px}
+.chat-cab{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px}
+.chat-cab h2{margin:0; font-size:30px}
+.mensajes{flex:1; overflow-y:auto; background:var(--panel); border:1px solid var(--borde); border-radius:16px; padding:14px}
+.burbuja{max-width:88%; padding:10px 14px; border-radius:16px; margin-bottom:10px; white-space:pre-wrap; word-wrap:break-word; overflow-wrap:anywhere; line-height:1.45; font-size:15px}
+.burbuja.usuario{background:var(--vino); color:#fff; margin-left:auto; border-bottom-right-radius:4px}
+.burbuja.asistente{background:#fff; border:1px solid var(--borde); border-bottom-left-radius:4px}
+.burbuja.pensando{color:var(--suave); font-style:italic}
+.burbuja.error{background:#fdf5f5; border-color:#e3b5b5; color:#a32020}
+.sugerencias{display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 4px}
+.chip-s{background:#f0e4e2; color:var(--vino); border:0; border-radius:20px; padding:8px 14px; font-size:13.5px; cursor:pointer}
+.chip-s:hover{background:#e8d6d3}
+.envio{display:flex; gap:8px; margin-top:10px}
+.envio textarea{flex:1; resize:none; border-radius:14px; padding:10px 14px; max-height:120px}
+.envio .btn-vino{border-radius:14px; min-width:52px}
+.aviso-ia{color:var(--suave); font-size:12px; text-align:center; margin-top:8px}
+@media (max-width:767.98px){
+  .chat-wrap{height:calc(100dvh - 170px)}
+  .chat-cab h2{font-size:26px}
+  .envio textarea{font-size:16px}
+}
+</style>
+{% endblock %}
+
+{% block contenido %}
+<div id="cfg" hidden
+     data-csrf="{{ csrf_token }}"
+     data-api="{% url 'api_asistente' %}"
+     data-limpiar="{% url 'limpiar_asistente' %}"></div>
+
+<div class="chat-wrap">
+  <div class="chat-cab">
+    <h2>Asistente IA</h2>
+    <button type="button" class="btn btn-outline-secondary btn-sm" style="border-radius:20px" id="btn-nueva"><i class="bi bi-arrow-repeat"></i> Nueva conversación</button>
+  </div>
+
+  <div class="mensajes" id="mensajes" aria-live="polite">
+    {% if not historial %}
+    <div class="burbuja asistente" id="bienvenida">Hola, {{ nombre }}. Soy el asistente de CampesinoStock. Puedo ayudarte a consultar el inventario: stock, ubicación de los productos, qué está bajo el mínimo y qué conviene reabastecer.</div>
+    {% endif %}
+    {% for m in historial %}
+    <div class="burbuja {% if m.r == 'u' %}usuario{% else %}asistente{% endif %}">{{ m.t }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="sugerencias" id="sugerencias" {% if historial %}hidden{% endif %}>
+    {% for s in sugerencias %}<button type="button" class="chip-s">{{ s }}</button>{% endfor %}
+  </div>
+
+  <form class="envio" id="form-chat" autocomplete="off">
+    <textarea id="entrada" class="form-control" rows="1" maxlength="{{ max_mensaje }}" placeholder="Escribe tu pregunta..." aria-label="Escribe tu pregunta"></textarea>
+    <button class="btn btn-vino" id="btn-enviar" aria-label="Enviar"><i class="bi bi-send-fill"></i></button>
+  </form>
+  <div class="aviso-ia">El asistente solo consulta el inventario y puede equivocarse. Verifica los datos importantes.</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var CONF = document.getElementById('cfg').dataset;
+var mensajes = document.getElementById('mensajes');
+var entrada = document.getElementById('entrada');
+var botonEnviar = document.getElementById('btn-enviar');
+var cajaSugerencias = document.getElementById('sugerencias');
+var enviando = false;
+
+function bajar(){ mensajes.scrollTop = mensajes.scrollHeight; }
+
+function agregar(texto, clase){
+  var div = document.createElement('div');
+  div.className = 'burbuja ' + clase;
+  div.textContent = texto;
+  mensajes.appendChild(div);
+  bajar();
+  return div;
+}
+
+function ajustarAltura(){
+  entrada.style.height = 'auto';
+  entrada.style.height = Math.min(entrada.scrollHeight, 120) + 'px';
+}
+
+async function enviar(texto){
+  texto = texto.trim();
+  if (!texto || enviando) return;
+  enviando = true;
+  botonEnviar.disabled = true;
+  cajaSugerencias.hidden = true;
+  var bienvenida = document.getElementById('bienvenida');
+  if (bienvenida) bienvenida.remove();
+
+  agregar(texto, 'usuario');
+  entrada.value = '';
+  ajustarAltura();
+  var pensando = agregar('Pensando...', 'asistente pensando');
+
+  var control = new AbortController();
+  var limite = setTimeout(function(){ control.abort(); }, 90000);
+  try {
+    var r = await fetch(CONF.api, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CONF.csrf},
+      body: JSON.stringify({mensaje: texto}),
+      signal: control.signal
+    });
+    var datos = await r.json();
+    pensando.remove();
+    agregar(datos.respuesta || 'No recibí respuesta.', r.ok ? 'asistente' : 'asistente error');
+  } catch (e) {
+    pensando.remove();
+    agregar('No se pudo obtener la respuesta. Recarga la página e inténtalo de nuevo.', 'asistente error');
+  } finally {
+    clearTimeout(limite);
+    enviando = false;
+    botonEnviar.disabled = false;
+    entrada.focus();
+  }
+}
+
+document.getElementById('form-chat').addEventListener('submit', function(e){
+  e.preventDefault();
+  enviar(entrada.value);
+});
+entrada.addEventListener('keydown', function(e){
+  if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); enviar(entrada.value); }
+});
+entrada.addEventListener('input', ajustarAltura);
+
+document.querySelectorAll('.chip-s').forEach(function(chip){
+  chip.addEventListener('click', function(){ enviar(chip.textContent); });
+});
+
+document.getElementById('btn-nueva').addEventListener('click', async function(){
+  try {
+    await fetch(CONF.limpiar, {method: 'POST', headers: {'X-CSRFToken': CONF.csrf}});
+  } catch (e) {}
+  mensajes.innerHTML = '';
+  agregar('Conversación nueva. ¿En qué te ayudo con el inventario?', 'asistente');
+  cajaSugerencias.hidden = false;
+});
+
+bajar();
+</script>
+{% endblock %}

@@ -17,7 +17,7 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path
-from inventario import views
+from inventario import views, views_ia
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -49,6 +49,9 @@ urlpatterns = [
     path('proveedores/<int:pk>/editar/', views.proveedor_form, name='proveedor_editar'),
     path('proveedores/<int:pk>/eliminar/', views.proveedor_eliminar, name='proveedor_eliminar'),
     path('codigo-admin/', views.codigo_admin, name='codigo_admin'),
+    path('asistente/', views_ia.asistente_pagina, name='asistente'),
+    path('api/asistente/', views_ia.api_asistente, name='api_asistente'),
+    path('api/asistente/limpiar/', views_ia.limpiar_asistente, name='limpiar_asistente'),
 ]
 
 if settings.DEBUG:

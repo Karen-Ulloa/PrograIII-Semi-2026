@@ -72,6 +72,7 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
       <a class="item" href="#"><i class="bi bi-qr-code-scan"></i> Escanear</a>
       <a class="item {% if activo == 'productos' %}activo{% endif %}" href="{% url 'productos' %}"><i class="bi bi-journal-text"></i> Productos</a>
       {% if es_gestor %}
+      <a class="item {% if activo == 'asistente' %}activo{% endif %}" href="{% url 'asistente' %}"><i class="bi bi-chat-left-text"></i> Asistente IA</a>
       <a class="item {% if activo == 'proveedores' %}activo{% endif %}" href="{% url 'proveedores' %}"><i class="bi bi-truck"></i> Proveedores</a>
       {% endif %}
       {% if es_admin %}
