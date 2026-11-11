@@ -3,17 +3,19 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{% block titulo %}CampesinoStock{% endblock %}</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <style>
 :root{--vino:#5a1016; --fondo:#efece7; --panel:#fdfaf5; --borde:#ebe4d9; --texto:#2a1f1f; --suave:#7a6f6f}
-body{margin:0; background:var(--fondo); font-family:'DM Sans',sans-serif; color:var(--texto)}
+html{-webkit-text-size-adjust:100%}
+body{margin:0; background:var(--fondo); font-family:'DM Sans',sans-serif; color:var(--texto); overflow-x:hidden}
 h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; letter-spacing:.3px}
 .app{display:flex; min-height:100vh}
 
+/* ---------- Menú lateral (computadora) ---------- */
 .menu{width:230px; background:var(--panel); border-right:1px solid var(--borde); padding:16px 12px; display:flex; flex-direction:column; position:sticky; top:0; height:100vh; overflow-y:auto; flex-shrink:0}
 .marca{text-align:center; padding:4px 0 16px; border-bottom:1px solid var(--borde); margin-bottom:12px}
 .marca .logo{background:#fff; border:1px solid var(--borde); border-radius:12px; padding:6px; display:inline-block}
@@ -23,20 +25,22 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
 .menu a.item i{font-size:17px; color:var(--vino)}
 .menu a.item:hover{background:#f4ebe6}
 .menu a.item.activo{background:#f0e4e2; font-weight:700; color:var(--vino)}
-.badge-n{margin-left:auto; background:#d93025; color:#fff; border-radius:12px; font-size:11px; padding:1px 7px}
+.badge-n{margin-left:auto; background:#d93025; color:#fff; border-radius:12px; font-size:11px; padding:1px 7px; font-weight:700}
 .usuario{margin-top:auto; background:#f6f1ea; border-radius:12px; padding:10px; display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--texto)}
 .usuario:hover{background:#f0e4e2; color:var(--texto)}
 .avatar{width:32px; height:32px; border-radius:50%; background:var(--vino); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0; overflow:hidden}
 .avatar img{width:100%; height:100%; object-fit:cover}
-.btn-salir{display:block; width:100%; text-align:center; border:1px solid var(--borde); background:#fff; border-radius:10px; padding:8px; font-size:13px; color:var(--texto); text-decoration:none}
-.btn-salir:hover{background:#f4ebe6; color:var(--texto)}
 
+/* ---------- Contenido ---------- */
 .principal{flex:1; min-width:0; display:flex; flex-direction:column}
 .barra{background:var(--panel); border-bottom:1px solid var(--borde); padding:12px 28px; display:flex; justify-content:space-between; align-items:center}
-.barra h4{margin:0; font-size:24px}
+.titulo-barra{display:flex; align-items:center; gap:10px; min-width:0}
+.barra h4{margin:0; font-size:24px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.logo-barra{display:none; height:34px; width:auto; border-radius:8px; background:#fff; padding:2px; border:1px solid var(--borde)}
 .barra .der{display:flex; align-items:center; gap:14px}
-.campana{position:relative; color:var(--texto); font-size:18px}
-.contenido{padding:26px 32px; flex:1}
+.barra .der a{color:var(--texto); text-decoration:none}
+.campana{position:relative; font-size:18px}
+.contenido{padding:26px 32px; flex:1; min-width:0}
 .pie{text-align:center; color:var(--suave); font-size:12px; padding:16px; border-top:1px solid var(--borde)}
 
 .btn-vino{background:var(--vino); color:#fff; border-radius:30px; padding:8px 20px; border:0}
@@ -49,11 +53,54 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
 .tabla th{font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:var(--suave); font-weight:600; background:#f6f1ea; border-bottom:1px solid var(--borde); white-space:nowrap}
 .tabla td{vertical-align:middle; font-size:14px; border-color:var(--borde)}
 
-@media (max-width:768px){
-  .app{flex-direction:column}
-  .menu{width:100%; height:auto; position:static}
+/* ---------- Navegación inferior y hoja "Más" (celular y tablet) ---------- */
+.nav-inferior{display:none; position:fixed; left:0; right:0; bottom:0; z-index:60; background:var(--panel); border-top:1px solid var(--borde); padding:6px 4px calc(6px + env(safe-area-inset-bottom)); justify-content:space-around}
+.nav-inferior a, .nav-inferior button{flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 2px; min-height:52px; color:var(--suave); text-decoration:none; font-size:11px; background:none; border:0; border-radius:12px; font-family:inherit; position:relative}
+.nav-inferior i{font-size:22px; line-height:1}
+.nav-inferior .activo{color:var(--vino); font-weight:700}
+.nav-inferior .badge-n{position:absolute; top:2px; left:calc(50% + 6px); margin:0; font-size:10px; padding:1px 6px}
+.hoja-mas{display:none; position:fixed; inset:0; z-index:70}
+.hoja-fondo{position:absolute; inset:0; background:rgba(0,0,0,.45)}
+.hoja-caja{position:absolute; left:0; right:0; bottom:0; background:var(--panel); border-radius:20px 20px 0 0; padding:10px 14px calc(18px + env(safe-area-inset-bottom)); box-shadow:0 -8px 30px rgba(0,0,0,.2); max-height:80vh; overflow-y:auto}
+.hoja-asa{width:42px; height:5px; background:#d8cfc5; border-radius:3px; margin:2px auto 10px}
+.hoja-item{display:flex; align-items:center; gap:14px; padding:14px 10px; color:var(--texto); text-decoration:none; border-radius:12px; font-size:16px}
+.hoja-item i{color:var(--vino); font-size:20px}
+.hoja-item:active{background:#f4ebe6; color:var(--texto)}
+.hoja-item img{width:24px; height:24px; border-radius:50%; object-fit:cover}
+
+/* ---------- Tablet y celular: barra inferior en lugar del menú lateral ---------- */
+@media (max-width:991.98px){
+  .app{display:block}
+  .menu{display:none}
+  .principal{min-height:100vh; padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+  .barra{position:sticky; top:0; z-index:50; padding:10px 14px}
+  .barra h4{font-size:22px}
+  .logo-barra{display:block}
+  .nombre-barra{display:none}
   .contenido{padding:18px 14px}
-  .barra{padding:12px 14px}
+  .nav-inferior{display:flex}
+  .hoja-mas:not([hidden]){display:block}
+}
+
+/* ---------- Celular: tarjetas en lugar de tablas, controles más grandes ---------- */
+@media (max-width:767.98px){
+  .contenido h2{font-size:28px !important}
+  .form-control,.form-select{font-size:16px; min-height:46px}
+  .btn{min-height:44px}
+  .btn-sm{min-height:40px; min-width:40px; display:inline-flex; align-items:center; justify-content:center}
+  .caja{padding:12px 14px}
+
+  .tabla-cards, .tabla-cards tbody{display:block; width:100%}
+  .tabla-cards thead{display:none}
+  .tabla-cards tr{display:block; padding:12px 14px; border-bottom:1px solid var(--borde)}
+  .tabla-cards tr:last-child{border-bottom:0}
+  .tabla-cards td{display:flex; justify-content:space-between; align-items:center; gap:12px; padding:4px 0 !important; border:0 !important; background:transparent !important; box-shadow:none !important}
+  .tabla-cards td::before{content:attr(data-label); color:var(--suave); font-size:12px; text-transform:uppercase; letter-spacing:.4px; flex-shrink:0}
+  .tabla-cards td.celda-titulo{display:block; font-size:16px; padding-bottom:6px !important}
+  .tabla-cards td.celda-titulo::before, .tabla-cards td.celda-acciones::before{display:none}
+  .tabla-cards td.celda-acciones{justify-content:flex-end; padding-top:10px !important}
+  .tabla-cards td[colspan]{display:block; text-align:center}
+  .tabla-cards td[colspan]::before{display:none}
 }
 </style>
 {% block extra_css %}{% endblock %}
@@ -71,17 +118,19 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
       <a class="item {% if activo == 'inicio' %}activo{% endif %}" href="{% url 'dashboard' %}"><i class="bi bi-house-door"></i> Inicio</a>
       <a class="item" href="#"><i class="bi bi-qr-code-scan"></i> Escanear</a>
       <a class="item {% if activo == 'productos' %}activo{% endif %}" href="{% url 'productos' %}"><i class="bi bi-journal-text"></i> Productos</a>
-      {% if es_gestor %}
+      <a class="item {% if activo == 'ventas' %}activo{% endif %}" href="{% url 'ventas' %}"><i class="bi bi-receipt"></i> Ventas</a>
+      <a class="item {% if activo == 'mermas' %}activo{% endif %}" href="{% url 'mermas' %}"><i class="bi bi-trash3"></i> Mermas</a>
       <a class="item {% if activo == 'asistente' %}activo{% endif %}" href="{% url 'asistente' %}"><i class="bi bi-chat-left-text"></i> Asistente IA</a>
+      {% if es_gestor %}
       <a class="item {% if activo == 'proveedores' %}activo{% endif %}" href="{% url 'proveedores' %}"><i class="bi bi-truck"></i> Proveedores</a>
       {% endif %}
       {% if es_admin %}
-      <a class="item" href="#"><i class="bi bi-people"></i> Clientes</a>
+      <a class="item {% if activo == 'clientes' %}activo{% endif %}" href="{% url 'clientes' %}"><i class="bi bi-people"></i> Clientes</a>
       <a class="item {% if activo == 'empleados' %}activo{% endif %}" href="{% url 'empleados' %}"><i class="bi bi-person-badge"></i> Empleados</a>
       {% endif %}
-      <a class="item" href="#"><i class="bi bi-exclamation-triangle"></i> Alertas</a>
+      <a class="item {% if activo == 'alertas' %}activo{% endif %}" href="{% url 'alertas' %}"><i class="bi bi-exclamation-triangle"></i> Alertas{% if alertas %}<span class="badge-n">{{ alertas }}</span>{% endif %}</a>
       <a class="item {% if activo == 'perfil' %}activo{% endif %}" href="{% url 'perfil' %}"><i class="bi bi-person"></i> Perfil</a>
-      <a class="item" href="#"><i class="bi bi-bell"></i> Notificaciones{% if alertas %}<span class="badge-n">{{ alertas }}</span>{% endif %}</a>
+      <a class="item" href="#"><i class="bi bi-bell"></i> Notificaciones</a>
     </nav>
 
     <a class="usuario" href="{% url 'perfil' %}" title="Ir a mi perfil">
@@ -95,10 +144,16 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
 
   <div class="principal">
     <header class="barra">
-      <h4>{% block encabezado %}Inicio{% endblock %}</h4>
+      <div class="titulo-barra">
+        <img class="logo-barra" src="{% static 'inventario/img/logo.png' %}" alt="El Campesino">
+        <h4>{% block encabezado %}Inicio{% endblock %}</h4>
+      </div>
       <div class="der">
-        <a href="#" class="campana"><i class="bi bi-bell"></i></a>
-        <div class="d-flex align-items-center gap-2"><div class="avatar">{% if foto_url %}<img src="{{ foto_url }}" alt="Foto de perfil">{% else %}{{ inicial }}{% endif %}</div><span style="font-size:14px">{{ nombre }}</span></div>
+        <a href="{% url 'alertas' %}" class="campana" aria-label="Alertas de stock"><i class="bi bi-bell"></i>{% if alertas %}<span class="badge-n" style="position:absolute; top:-8px; right:-10px; margin:0; font-size:10px; padding:1px 6px">{{ alertas }}</span>{% endif %}</a>
+        <a href="{% url 'perfil' %}" class="d-flex align-items-center gap-2">
+          <div class="avatar">{% if foto_url %}<img src="{{ foto_url }}" alt="Foto de perfil">{% else %}{{ inicial }}{% endif %}</div>
+          <span class="nombre-barra" style="font-size:14px">{{ nombre }}</span>
+        </a>
       </div>
     </header>
 
@@ -112,6 +167,52 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
     <footer class="pie">© {% now "Y" %} CampesinoStock · Agroferretería El Campesino</footer>
   </div>
 </div>
+
+<!-- Navegación inferior (celular y tablet) -->
+<nav class="nav-inferior" aria-label="Navegación principal">
+  <a href="{% url 'dashboard' %}" class="{% if activo == 'inicio' %}activo{% endif %}"><i class="bi bi-house-door"></i><span>Inicio</span></a>
+  <a href="{% url 'productos' %}" class="{% if activo == 'productos' %}activo{% endif %}"><i class="bi bi-journal-text"></i><span>Productos</span></a>
+  <a href="{% url 'ventas' %}" class="{% if activo == 'ventas' %}activo{% endif %}"><i class="bi bi-receipt"></i><span>Ventas</span></a>
+  <a href="{% url 'asistente' %}" class="{% if activo == 'asistente' %}activo{% endif %}"><i class="bi bi-chat-left-text"></i><span>Asistente</span></a>
+  <button type="button" id="btn-mas" class="{% if activo == 'alertas' or activo == 'mermas' or activo == 'proveedores' or activo == 'clientes' or activo == 'empleados' or activo == 'perfil' or activo == 'codigo' %}activo{% endif %}"><i class="bi bi-grid"></i><span>Más</span>{% if alertas %}<span class="badge-n">{{ alertas }}</span>{% endif %}</button>
+</nav>
+
+<!-- Hoja "Más" -->
+<div id="hoja-mas" class="hoja-mas" hidden>
+  <div class="hoja-fondo" id="hoja-fondo"></div>
+  <div class="hoja-caja">
+    <div class="hoja-asa"></div>
+    <a class="hoja-item" href="{% url 'perfil' %}">
+      {% if foto_url %}<img src="{{ foto_url }}" alt="">{% else %}<i class="bi bi-person-circle"></i>{% endif %}
+      Mi perfil
+    </a>
+    <a class="hoja-item" href="{% url 'alertas' %}"><i class="bi bi-exclamation-triangle"></i> Alertas{% if alertas %}<span class="badge-n" style="margin-left:auto">{{ alertas }}</span>{% endif %}</a>
+    <a class="hoja-item" href="{% url 'mermas' %}"><i class="bi bi-trash3"></i> Mermas</a>
+    <a class="hoja-item" href="#"><i class="bi bi-qr-code-scan"></i> Escanear</a>
+    {% if es_gestor %}
+    <a class="hoja-item" href="{% url 'proveedores' %}"><i class="bi bi-truck"></i> Proveedores</a>
+    {% endif %}
+    {% if es_admin %}
+    <a class="hoja-item" href="{% url 'clientes' %}"><i class="bi bi-people"></i> Clientes</a>
+    <a class="hoja-item" href="{% url 'empleados' %}"><i class="bi bi-person-badge"></i> Empleados</a>
+    {% endif %}
+    <a class="hoja-item" href="#"><i class="bi bi-bell"></i> Notificaciones</a>
+  </div>
+</div>
+
+<script>
+(function(){
+  var hoja = document.getElementById('hoja-mas');
+  var boton = document.getElementById('btn-mas');
+  if (!hoja || !boton) return;
+  function abrir(){ hoja.hidden = false; document.body.style.overflow = 'hidden'; }
+  function cerrar(){ hoja.hidden = true; document.body.style.overflow = ''; }
+  boton.addEventListener('click', abrir);
+  document.getElementById('hoja-fondo').addEventListener('click', cerrar);
+  hoja.querySelectorAll('a').forEach(function(a){ a.addEventListener('click', cerrar); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !hoja.hidden) cerrar(); });
+})();
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -26,7 +26,7 @@
     <h2>Hola, {{ nombre }} 👋</h2>
   </div>
   {% if alertas %}
-  <div class="aviso"><i class="bi bi-exclamation-triangle"></i> {{ alertas }} productos bajo el mínimo de stock <a href="#" style="color:#b45309; font-weight:700; text-decoration:none">Ver alertas →</a></div>
+  <div class="aviso"><i class="bi bi-exclamation-triangle"></i> {{ alertas }} producto{{ alertas|pluralize }} bajo el mínimo de stock <a href="{% url 'alertas' %}" style="color:#b45309; font-weight:700; text-decoration:none">Ver alertas →</a></div>
   {% endif %}
 </div>
 
@@ -35,9 +35,9 @@
   <div class="col-6 col-lg-3"><a href="#" class="acceso"><i class="bi bi-qr-code-scan"></i>Escanear código</a></div>
   <div class="col-6 col-lg-3"><a href="#" class="acceso"><i class="bi bi-camera"></i>Reconocer por foto</a></div>
   <div class="col-6 col-lg-3"><a href="{% url 'productos' %}" class="acceso"><i class="bi bi-journal-text"></i>Ver productos</a></div>
-  <div class="col-6 col-lg-3"><a href="#" class="acceso"><i class="bi bi-trash3"></i>Registrar merma</a></div>
-  <div class="col-6 col-lg-3"><a href="#" class="acceso"><i class="bi bi-receipt"></i>Nueva venta</a></div>
-  <div class="col-6 col-lg-3"><a href="#" class="acceso"><i class="bi bi-bar-chart"></i>Historial ventas</a></div>
+  <a href="{% url 'merma_nueva' %}" class="acceso"><i class="bi bi-trash3"></i>Registrar merma</a>
+  <a href="{% url 'venta_nueva' %}" class="acceso"><i class="bi bi-receipt"></i>Nueva venta</a>
+  <a href="{% url 'ventas' %}" class="acceso"><i class="bi bi-bar-chart"></i>Historial ventas</a>
   <a href="{% url 'asistente' %}" class="acceso"><i class="bi bi-chat-left-text"></i>Asistente IA</a>
 </div>
 

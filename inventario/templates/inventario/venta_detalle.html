@@ -1,0 +1,69 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Venta #{{ venta.id_venta }} - CampesinoStock{% endblock %}
+{% block encabezado %}Venta #{{ venta.id_venta }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.comprobante{max-width:640px; margin:0 auto}
+.comprobante .cab{text-align:center; border-bottom:1px dashed var(--borde); padding-bottom:12px; margin-bottom:12px}
+.comprobante .cab h3{margin:0; font-size:26px}
+.dato-v{display:flex; justify-content:space-between; gap:16px; padding:5px 0; font-size:14px}
+.dato-v span:first-child{color:var(--suave)}
+.dato-v span:last-child{text-align:right; font-weight:500}
+.total-final{display:flex; justify-content:space-between; align-items:baseline; border-top:2px solid var(--borde); margin-top:8px; padding-top:10px}
+.total-final b{font-family:'Barlow Condensed',sans-serif; font-size:40px; color:var(--vino); line-height:1}
+
+@media print{
+  .menu, .barra, .nav-inferior, .hoja-mas, .pie, .no-imprimir, .alert{display:none !important}
+  body{background:#fff}
+  .contenido{padding:0 !important}
+  .comprobante .caja{border:0; box-shadow:none}
+}
+</style>
+{% endblock %}
+
+{% block contenido %}
+<div class="comprobante">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 no-imprimir">
+    <a href="{% url 'ventas' %}" class="small text-decoration-none" style="color:var(--vino)">&lt; Volver a ventas</a>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm" style="border-radius:20px" onclick="window.print()"><i class="bi bi-printer"></i> Imprimir</button>
+      <a href="{% url 'venta_nueva' %}" class="btn btn-vino btn-sm"><i class="bi bi-plus-lg"></i> Nueva venta</a>
+    </div>
+  </div>
+
+  <div class="caja">
+    <div class="cab">
+      <h3>Agroferretería El Campesino</h3>
+      <small class="text-muted">Comprobante de venta #{{ venta.id_venta }}</small>
+    </div>
+
+    <div class="dato-v"><span>Fecha</span><span>{{ venta.fecha_venta|date:"d/m/Y H:i" }}</span></div>
+    <div class="dato-v"><span>Atendió</span><span>{% if venta.id_empleado %}{{ venta.id_empleado.nombre }} {{ venta.id_empleado.apellido }}{% else %}—{% endif %}</span></div>
+    <div class="dato-v"><span>Método de pago</span><span>{% if venta.id_metodo_pago %}{{ venta.id_metodo_pago.nombre_metodo }}{% else %}—{% endif %}</span></div>
+    {% if es_admin %}
+    <div class="dato-v"><span>Cliente</span><span>{% if venta.id_cliente %}{{ venta.id_cliente.nombre }}{% else %}Consumidor final{% endif %}</span></div>
+    {% endif %}
+
+    <div class="mt-3" style="overflow-x:auto">
+      <table class="table tabla tabla-cards">
+        <thead>
+          <tr><th>Producto</th><th class="text-end">Cant.</th><th class="text-end">Precio</th><th class="text-end">Subtotal</th></tr>
+        </thead>
+        <tbody>
+          {% for l in lineas %}
+          <tr>
+            <td class="fw-semibold celda-titulo">{{ l.producto }}</td>
+            <td class="text-end" data-label="Cantidad">{{ l.cantidad }}</td>
+            <td class="text-end" data-label="Precio">${{ l.precio|floatformat:2 }}</td>
+            <td class="text-end" data-label="Subtotal">${{ l.subtotal|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="total-final"><span>Total</span><b>${{ total|floatformat:2 }}</b></div>
+  </div>
+</div>
+{% endblock %}

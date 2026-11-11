@@ -36,7 +36,7 @@
 </div>
 
 <div class="caja p-0" style="overflow-x:auto">
-  <table class="table tabla">
+  <table class="table tabla tabla-cards">
     <thead>
       <tr>
         <th>Producto</th>
@@ -97,14 +97,14 @@ function cargar(){
     let html = '';
     data.productos.forEach(p => {
       html += '<tr>' +
-        '<td class="fw-semibold">' + esc(p.nombre) + '</td>' +
-        '<td>' + esc(p.categoria) + '</td>' +
-        '<td>' + esc(p.ubicacion) + '</td>' +
-        '<td>' + etiquetaStock(p) + '</td>';
-      if (ES_GESTOR){ html += '<td>' + dinero(p.precio_compra) + '</td>'; }
-      html += '<td>' + dinero(p.precio_venta) + '</td>';
+        '<td class="fw-semibold celda-titulo">' + esc(p.nombre) + '</td>' +
+        '<td data-label="Categoría">' + esc(p.categoria) + '</td>' +
+        '<td data-label="Ubicación">' + esc(p.ubicacion) + '</td>' +
+        '<td data-label="Stock">' + etiquetaStock(p) + '</td>';
+      if (ES_GESTOR){ html += '<td data-label="P. compra">' + dinero(p.precio_compra) + '</td>'; }
+      html += '<td data-label="P. venta">' + dinero(p.precio_venta) + '</td>';
       if (ES_GESTOR){
-        html += '<td class="text-end text-nowrap">' +
+        html += '<td class="text-end text-nowrap celda-acciones">' +
           '<a href="' + URL_EDITAR.replace('/0/', '/' + p.id + '/') + '" class="btn btn-sm btn-outline-secondary me-1" title="Editar"><i class="bi bi-pencil"></i></a>';
         if (ES_ADMIN){
           html += '<form method="post" action="' + URL_ELIMINAR.replace('/0/', '/' + p.id + '/') + '" class="d-inline eliminar">' +

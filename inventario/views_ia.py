@@ -8,9 +8,10 @@ from . import asistente
 from .views import contexto, login_requerido
 
 SUGERENCIAS = [
-    '¿Qué productos están bajo el mínimo?',
+    '¿Qué necesito para pintar una reja de metal?',
+    '¿Qué broca uso para taladrar concreto?',
+    '¿Qué materiales necesito para cambiar una llave de agua?',
     '¿Qué debo reabastecer?',
-    'Dame un resumen del inventario',
     '¿Dónde está el cemento?',
 ]
 

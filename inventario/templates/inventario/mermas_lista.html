@@ -1,0 +1,76 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Mermas - CampesinoStock{% endblock %}
+{% block encabezado %}Mermas{% endblock %}
+
+{% block extra_css %}
+<style>
+.resumen-mermas{display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; margin-bottom:14px}
+.dato-merma{background:var(--panel); border:1px solid var(--borde); border-radius:14px; padding:12px 16px}
+.dato-merma small{color:var(--suave); display:block; font-size:12px}
+.dato-merma .num{font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:34px; line-height:1.1}
+.filtros{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+.filtro{padding:8px 16px; border-radius:20px; border:1px solid var(--borde); background:#fff; color:var(--texto); text-decoration:none; font-size:14px}
+.filtro:hover{background:#f4ebe6; color:var(--texto)}
+.filtro.activo{background:var(--vino); border-color:var(--vino); color:#fff}
+@media (max-width:575.98px){ .dato-merma .num{font-size:28px} }
+</style>
+{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h2 class="m-0" style="font-size:34px">Mermas</h2>
+  <a href="{% url 'merma_nueva' %}" class="btn btn-vino"><i class="bi bi-plus-lg"></i> Registrar merma</a>
+</div>
+
+<div class="resumen-mermas">
+  <div class="dato-merma"><small>Unidades dadas de baja</small><span class="num" style="color:#b3261e">{{ unidades }}</span></div>
+  {% if es_gestor %}
+  <div class="dato-merma"><small>Pérdida estimada</small><span class="num" style="color:var(--vino)">${{ total_costo|floatformat:2 }}</span></div>
+  {% else %}
+  <div class="dato-merma"><small>Registros</small><span class="num" style="color:#1e40af">{{ filas|length }}</span></div>
+  {% endif %}
+</div>
+
+<div class="filtros">
+  <a class="filtro {% if periodo == 'hoy' %}activo{% endif %}" href="{% url 'mermas' %}?periodo=hoy">Hoy</a>
+  <a class="filtro {% if periodo == 'semana' %}activo{% endif %}" href="{% url 'mermas' %}?periodo=semana">Últimos 7 días</a>
+  <a class="filtro {% if periodo == 'todas' %}activo{% endif %}" href="{% url 'mermas' %}?periodo=todas">Todas</a>
+</div>
+
+<div class="caja p-0" style="overflow-x:auto">
+  <table class="table tabla tabla-cards">
+    <thead>
+      <tr>
+        <th>Producto</th>
+        <th>Fecha</th>
+        <th>Cantidad</th>
+        <th>Motivo</th>
+        {% if es_gestor %}<th>Pérdida</th>{% endif %}
+        {% if es_admin %}<th class="text-end"></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in filas %}
+      <tr>
+        <td class="fw-semibold celda-titulo">{{ f.m.id_producto.nombre_producto }}</td>
+        <td data-label="Fecha">{{ f.m.fecha_merma|date:"d/m/Y H:i" }}</td>
+        <td data-label="Cantidad"><span class="badge bg-danger">{{ f.m.cantidad }}</span></td>
+        <td data-label="Motivo">{% if f.m.id_motivo %}{{ f.m.id_motivo.descripcion }}{% else %}—{% endif %}</td>
+        {% if es_gestor %}<td data-label="Pérdida">${{ f.costo|floatformat:2 }}</td>{% endif %}
+        {% if es_admin %}
+        <td class="text-end celda-acciones">
+          <form method="post" action="{% url 'merma_anular' f.m.id_merma %}" class="d-inline" onsubmit="return confirm('¿Anular esta merma? Las unidades volverán al stock del producto.')">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger" title="Anular"><i class="bi bi-arrow-counterclockwise"></i></button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="text-center text-muted py-4">No hay mermas {% if periodo == 'hoy' %}hoy{% elif periodo == 'semana' %}en los últimos 7 días{% else %}registradas{% endif %}.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if es_admin %}<small class="text-muted d-block mt-2">Anular una merma devuelve las unidades al stock del producto. Solo el administrador puede hacerlo.</small>{% endif %}
+{% endblock %}

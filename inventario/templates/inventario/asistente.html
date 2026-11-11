@@ -21,7 +21,7 @@
 .envio .btn-vino{border-radius:14px; min-width:52px}
 .aviso-ia{color:var(--suave); font-size:12px; text-align:center; margin-top:8px}
 @media (max-width:767.98px){
-  .chat-wrap{height:calc(100dvh - 170px)}
+  .chat-wrap{height:calc(100vh - 240px); height:calc(100dvh - 240px); min-height:340px}
   .chat-cab h2{font-size:26px}
   .envio textarea{font-size:16px}
 }
@@ -42,7 +42,7 @@
 
   <div class="mensajes" id="mensajes" aria-live="polite">
     {% if not historial %}
-    <div class="burbuja asistente" id="bienvenida">Hola, {{ nombre }}. Soy el asistente de CampesinoStock. Puedo ayudarte a consultar el inventario: stock, ubicación de los productos, qué está bajo el mínimo y qué conviene reabastecer.</div>
+    <div class="burbuja asistente" id="bienvenida">Hola, {{ nombre }}. Soy el asistente de CampesinoStock. Puedo ayudarte con el inventario (stock, ubicación, qué reabastecer) y con consejos de ferretería, construcción y herramientas, recomendándote lo que tenemos disponible.</div>
     {% endif %}
     {% for m in historial %}
     <div class="burbuja {% if m.r == 'u' %}usuario{% else %}asistente{% endif %}">{{ m.t }}</div>

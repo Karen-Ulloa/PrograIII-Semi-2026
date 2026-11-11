@@ -1,0 +1,188 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Registrar merma - CampesinoStock{% endblock %}
+{% block encabezado %}Registrar merma{% endblock %}
+
+{% block extra_css %}
+<style>
+.resultado{display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--borde)}
+.resultado:last-child{border-bottom:0}
+.resultado .info{flex:1; min-width:0}
+.resultado .info b{display:block; font-size:14.5px; line-height:1.25}
+.resultado .info small{color:var(--suave)}
+.btn-mas{width:42px; height:42px; border-radius:50%; border:0; background:var(--vino); color:#fff; font-size:20px; display:flex; align-items:center; justify-content:center; flex-shrink:0}
+.btn-mas:disabled{background:#cfc6bd}
+.input-cant{width:84px; text-align:center}
+.vacio-lista{text-align:center; color:var(--suave); padding:26px 8px}
+.vacio-lista i{font-size:34px; display:block; opacity:.6; margin-bottom:6px}
+.resumen-merma{display:flex; justify-content:space-between; padding:10px 0; border-top:2px solid var(--borde); margin-top:6px; font-size:14px; color:var(--suave)}
+</style>
+{% endblock %}
+
+{% block contenido %}
+<div id="cfg" hidden data-api="{% url 'api_productos' %}"></div>
+{{ motivos|json_script:"datos-motivos" }}
+{{ previas|json_script:"datos-previos" }}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h2 class="m-0" style="font-size:34px">Registrar merma</h2>
+  <a href="{% url 'mermas' %}" class="btn btn-outline-secondary btn-sm" style="border-radius:20px"><i class="bi bi-clock-history"></i> Ver mermas</a>
+</div>
+
+{% if error %}<div class="alert alert-danger py-2">{{ error }}</div>{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="caja">
+      <label class="small fw-bold" for="buscar">1. Busca el producto dañado o perdido</label>
+      <div class="input-group mt-1">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input type="search" id="buscar" class="form-control" placeholder="Nombre o categoría..." autocomplete="off">
+      </div>
+      <div id="resultados" class="mt-2"><div class="text-muted small py-2">Escribe para buscar productos.</div></div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <form method="post" id="form-merma" class="caja" autocomplete="off">
+      {% csrf_token %}
+      <input type="hidden" name="lineas" id="lineas">
+      <div class="small fw-bold mb-1">2. Cantidad y motivo de cada producto</div>
+
+      <div id="vacio-lista" class="vacio-lista"><i class="bi bi-box-seam"></i>Aún no agregaste productos.</div>
+      <table class="table tabla tabla-cards" id="tabla-merma" hidden>
+        <thead>
+          <tr><th>Producto</th><th>Cantidad</th><th>Motivo</th><th></th></tr>
+        </thead>
+        <tbody id="cuerpo-merma"></tbody>
+      </table>
+
+      <div class="resumen-merma"><span>Productos: <b id="n-productos">0</b></span><span>Unidades: <b id="n-unidades">0</b></span></div>
+
+      <p class="small text-muted mb-2">Al guardar, estas unidades se descuentan del stock.</p>
+      <button class="btn btn-vino w-100" id="btn-registrar"><i class="bi bi-check2-circle"></i> Registrar merma</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var API = document.getElementById('cfg').dataset.api;
+var MOTIVOS = JSON.parse(document.getElementById('datos-motivos').textContent);
+var lista = [];
+var temporizador = null;
+
+var cuerpo = document.getElementById('cuerpo-merma');
+var tabla = document.getElementById('tabla-merma');
+var vacio = document.getElementById('vacio-lista');
+var resultados = document.getElementById('resultados');
+
+function esc(texto){ var d = document.createElement('div'); d.textContent = texto; return d.innerHTML; }
+
+function opcionesMotivo(seleccionado){
+  return MOTIVOS.map(function(m){
+    return '<option value="' + m.id + '"' + (m.id === seleccionado ? ' selected' : '') + '>' + esc(m.nombre) + '</option>';
+  }).join('');
+}
+
+function pintar(){
+  var unidades = 0;
+  var html = '';
+  lista.forEach(function(p, i){
+    unidades += p.cantidad;
+    html += '<tr>' +
+      '<td class="fw-semibold celda-titulo">' + esc(p.nombre) + '<br><small class="text-muted fw-normal">En stock: ' + p.stock + '</small></td>' +
+      '<td data-label="Cantidad"><input type="number" class="form-control form-control-sm input-cant" min="1" max="' + p.stock + '" value="' + p.cantidad + '" data-i="' + i + '" aria-label="Cantidad"></td>' +
+      '<td data-label="Motivo"><select class="form-select form-select-sm sel-motivo" data-i="' + i + '" aria-label="Motivo">' + opcionesMotivo(p.motivo) + '</select></td>' +
+      '<td class="text-end celda-acciones"><button type="button" class="btn btn-sm btn-outline-danger quitar" data-i="' + i + '" aria-label="Quitar"><i class="bi bi-x-lg"></i></button></td>' +
+      '</tr>';
+  });
+  cuerpo.innerHTML = html;
+  tabla.hidden = lista.length === 0;
+  vacio.hidden = lista.length > 0;
+  document.getElementById('n-productos').textContent = lista.length;
+  document.getElementById('n-unidades').textContent = unidades;
+
+  cuerpo.querySelectorAll('.input-cant').forEach(function(campo){
+    campo.addEventListener('change', function(){
+      var p = lista[Number(campo.dataset.i)];
+      var n = parseInt(campo.value, 10);
+      if (isNaN(n) || n < 1) n = 1;
+      if (n > p.stock){ n = p.stock; alert('Solo hay ' + p.stock + ' en stock de este producto.'); }
+      p.cantidad = n;
+      pintar();
+    });
+  });
+  cuerpo.querySelectorAll('.sel-motivo').forEach(function(sel){
+    sel.addEventListener('change', function(){ lista[Number(sel.dataset.i)].motivo = parseInt(sel.value, 10); });
+  });
+  cuerpo.querySelectorAll('.quitar').forEach(function(boton){
+    boton.addEventListener('click', function(){ lista.splice(Number(boton.dataset.i), 1); pintar(); });
+  });
+}
+
+function agregar(p){
+  var existente = lista.find(function(x){ return x.id === p.id; });
+  if (existente){
+    if (existente.cantidad < existente.stock){ existente.cantidad++; }
+    else { alert('Solo hay ' + existente.stock + ' en stock de este producto.'); }
+  } else {
+    lista.push({id: p.id, nombre: p.nombre, stock: p.stock, cantidad: 1, motivo: MOTIVOS.length ? MOTIVOS[0].id : 0});
+  }
+  pintar();
+}
+
+function buscar(){
+  var q = document.getElementById('buscar').value.trim();
+  if (q.length < 2){
+    resultados.innerHTML = '<div class="text-muted small py-2">Escribe al menos 2 letras para buscar.</div>';
+    return;
+  }
+  fetch(API + '?q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(function(data){
+    var encontrados = data.productos.slice(0, 8);
+    if (!encontrados.length){
+      resultados.innerHTML = '<div class="text-muted small py-2">No se encontraron productos.</div>';
+      return;
+    }
+    var html = '';
+    encontrados.forEach(function(p, i){
+      var hay = p.stock > 0;
+      html += '<div class="resultado">' +
+        '<div class="info"><b>' + esc(p.nombre) + '</b><small>' + esc(p.categoria) + ' · ' + (hay ? p.stock + ' en stock' : '<span class="text-danger">Sin stock</span>') + '</small></div>' +
+        '<button type="button" class="btn-mas" data-i="' + i + '" ' + (hay ? '' : 'disabled') + ' aria-label="Agregar"><i class="bi bi-plus-lg"></i></button>' +
+        '</div>';
+    });
+    resultados.innerHTML = html;
+    resultados.querySelectorAll('.btn-mas').forEach(function(boton){
+      boton.addEventListener('click', function(){ agregar(encontrados[Number(boton.dataset.i)]); });
+    });
+  }).catch(function(){
+    resultados.innerHTML = '<div class="text-danger small py-2">No se pudo buscar. Intenta de nuevo.</div>';
+  });
+}
+
+document.getElementById('buscar').addEventListener('input', function(){
+  clearTimeout(temporizador);
+  temporizador = setTimeout(buscar, 250);
+});
+
+document.getElementById('form-merma').addEventListener('submit', function(e){
+  if (lista.length === 0){
+    e.preventDefault();
+    alert('Agrega al menos un producto.');
+    return;
+  }
+  document.getElementById('lineas').value = JSON.stringify(
+    lista.map(function(p){ return {id: p.id, cantidad: p.cantidad, motivo: p.motivo}; }));
+  document.getElementById('btn-registrar').disabled = true;
+});
+
+/* Si hubo un error al guardar, se recupera la lista */
+try {
+  JSON.parse(document.getElementById('datos-previos').textContent).forEach(function(p){
+    lista.push({id: p.id, nombre: p.nombre, stock: p.stock, cantidad: p.cantidad, motivo: p.motivo});
+  });
+} catch (e) {}
+pintar();
+</script>
+{% endblock %}

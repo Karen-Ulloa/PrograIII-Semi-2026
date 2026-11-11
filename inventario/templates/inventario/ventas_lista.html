@@ -1,0 +1,65 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Ventas - CampesinoStock{% endblock %}
+{% block encabezado %}Ventas{% endblock %}
+
+{% block extra_css %}
+<style>
+.resumen-ventas{display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; margin-bottom:14px}
+.dato-venta{background:var(--panel); border:1px solid var(--borde); border-radius:14px; padding:12px 16px}
+.dato-venta small{color:var(--suave); display:block; font-size:12px}
+.dato-venta .num{font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:34px; line-height:1.1}
+.filtros{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+.filtro{padding:8px 16px; border-radius:20px; border:1px solid var(--borde); background:#fff; color:var(--texto); text-decoration:none; font-size:14px}
+.filtro:hover{background:#f4ebe6; color:var(--texto)}
+.filtro.activo{background:var(--vino); border-color:var(--vino); color:#fff}
+@media (max-width:575.98px){ .dato-venta .num{font-size:28px} }
+</style>
+{% endblock %}
+
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h2 class="m-0" style="font-size:34px">Ventas</h2>
+  <a href="{% url 'venta_nueva' %}" class="btn btn-vino"><i class="bi bi-plus-lg"></i> Nueva venta</a>
+</div>
+
+<div class="resumen-ventas">
+  <div class="dato-venta"><small>Ventas</small><span class="num" style="color:#1e40af">{{ ventas|length }}</span></div>
+  <div class="dato-venta"><small>Total vendido</small><span class="num" style="color:var(--vino)">${{ suma|floatformat:2 }}</span></div>
+</div>
+
+<div class="filtros">
+  <a class="filtro {% if periodo == 'hoy' %}activo{% endif %}" href="{% url 'ventas' %}?periodo=hoy">Hoy</a>
+  <a class="filtro {% if periodo == 'semana' %}activo{% endif %}" href="{% url 'ventas' %}?periodo=semana">Últimos 7 días</a>
+  <a class="filtro {% if periodo == 'todas' %}activo{% endif %}" href="{% url 'ventas' %}?periodo=todas">Todas</a>
+</div>
+
+<div class="caja p-0" style="overflow-x:auto">
+  <table class="table tabla tabla-cards">
+    <thead>
+      <tr>
+        <th>N°</th>
+        <th>Fecha</th>
+        {% if es_admin %}<th>Vendedor</th>{% endif %}
+        <th>Pago</th>
+        <th class="text-end">Total</th>
+        <th class="text-end"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in ventas %}
+      <tr>
+        <td class="fw-semibold celda-titulo">Venta #{{ v.id_venta }}</td>
+        <td data-label="Fecha">{{ v.fecha_venta|date:"d/m/Y H:i" }}</td>
+        {% if es_admin %}<td data-label="Vendedor">{% if v.id_empleado %}{{ v.id_empleado.nombre }}{% else %}—{% endif %}</td>{% endif %}
+        <td data-label="Pago">{% if v.id_metodo_pago %}{{ v.id_metodo_pago.nombre_metodo }}{% else %}—{% endif %}</td>
+        <td class="text-end fw-bold" data-label="Total">${{ v.total|default_if_none:0|floatformat:2 }}</td>
+        <td class="text-end celda-acciones"><a href="{% url 'venta_detalle' v.id_venta %}" class="btn btn-sm btn-outline-secondary" title="Ver comprobante"><i class="bi bi-receipt"></i></a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="text-center text-muted py-4">No hay ventas {% if periodo == 'hoy' %}hoy{% elif periodo == 'semana' %}en los últimos 7 días{% else %}registradas{% endif %}.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if not es_admin %}<small class="text-muted d-block mt-2">Aquí ves solo las ventas que registraste tú.</small>{% endif %}
+{% endblock %}

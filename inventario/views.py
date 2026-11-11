@@ -1,4 +1,5 @@
 import hmac
+import json
 import logging
 import re
 import secrets
@@ -16,6 +17,7 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.core.files.base import ContentFile
 from django.core.mail import send_mail
 from django.core.validators import validate_email
+from django.db import transaction
 from django.db.models import DecimalField, F, Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -27,8 +29,8 @@ from twilio.base.exceptions import TwilioException
 from twilio.rest import Client
 
 from .models import (
-    Categorias, Configuracion, DetalleCompra, DetalleVenta, Empleados,
-    OrdenesCompra, ProductoProveedo, Productos, Proveedores,
+    Categorias, Clientes, Configuracion, DetalleCompra, DetalleVenta, Empleados,
+    MetodosPago, MotivosMerma, OrdenesCompra, ProductoProveedo, Productos, Proveedores,
     RegistrosMerma, Ubicaciones, Ventas,
 )
 
@@ -143,7 +145,7 @@ def contexto(request, activo='', **extra):
         'inicial': emp.nombre[:1].upper(),
         'foto_url': emp.foto.url if emp.foto else '',
         'activo': activo,
-        'alertas': 0,
+        'alertas': Productos.objects.filter(stock__lte=F('stock_minimo')).count(),
     }
     datos.update(extra)
     return datos
@@ -153,6 +155,12 @@ def contexto(request, activo='', **extra):
 # PÁGINAS PÚBLICAS, REGISTRO Y LOGIN
 # ---------------------------------------------------------------
 def inicio(request):
+    # Quien ya inició sesión va al dashboard; en un teléfono se abre directo el inicio de sesión.
+    if request.session.get('empleado_id'):
+        return redirect('dashboard')
+    agente = request.META.get('HTTP_USER_AGENT', '')
+    if re.search(r'Mobi|Android|iPhone|iPad|iPod', agente):
+        return redirect('login')
     return render(request, 'inventario/inicio.html')
 
 
@@ -491,9 +499,43 @@ def dashboard(request):
         ventas_hoy=ventas_hoy.count(),
         total_hoy=total_hoy,
         total_ordenes=OrdenesCompra.objects.count(),
-        alertas=0,
         actividad=Ventas.objects.order_by('-fecha_venta')[:5],
     ))
+
+
+# ---------------------------------------------------------------
+# ALERTAS DE STOCK (todos los roles)
+# ---------------------------------------------------------------
+@login_requerido
+def alertas_lista(request):
+    tipo = request.GET.get('tipo', 'todas')
+    es_gestor = request.empleado.rol in ('Administrador', 'Encargado')
+
+    base = Productos.objects.select_related('id_categoria', 'id_ubicacion')
+    agotados = base.filter(stock__lte=0)
+    bajo = base.filter(stock__gt=0, stock__lte=F('stock_minimo'))
+    if tipo == 'agotados':
+        consulta = agotados
+    elif tipo == 'bajo':
+        consulta = bajo
+    else:
+        tipo = 'todas'
+        consulta = base.filter(stock__lte=F('stock_minimo'))
+
+    filas = []
+    total_costo = 0
+    for p in consulta.order_by('stock', 'nombre_producto'):
+        sugerida = max(p.stock_minimo * 2 - p.stock, 1)
+        costo = None
+        if es_gestor:  # el costo solo lo ven Administrador y Encargado
+            costo = float(p.precio_compra) * sugerida
+            total_costo += costo
+        filas.append({'producto': p, 'sugerida': sugerida, 'costo': costo, 'agotado': p.stock <= 0})
+
+    return render(request, 'inventario/alertas.html', contexto(
+        request, 'alertas', filas=filas, tipo=tipo,
+        n_agotados=agotados.count(), n_bajo=bajo.count(),
+        total_costo=total_costo if es_gestor else None))
 
 
 # ---------------------------------------------------------------
@@ -1057,3 +1099,366 @@ def proveedor_eliminar(request, pk):
             prov.delete()
             messages.success(request, f'Proveedor "{nombre}" eliminado.')
     return redirect('proveedores')
+
+
+# ---------------------------------------------------------------
+# CLIENTES (solo administrador)
+# ---------------------------------------------------------------
+class ClienteForm(forms.ModelForm):
+    class Meta:
+        model = Clientes
+        fields = ['nombre', 'telefono']
+        labels = {'nombre': 'Nombre del cliente', 'telefono': 'Teléfono'}
+        widgets = {
+            'nombre': forms.TextInput(attrs={'class': 'form-control'}),
+            'telefono': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '0000-0000',
+                                               'inputmode': 'tel'}),
+        }
+
+    def clean_nombre(self):
+        nombre = ' '.join(self.cleaned_data['nombre'].split())
+        if len(nombre) < 3:
+            raise forms.ValidationError('Escribe el nombre del cliente.')
+        return nombre
+
+    def clean_telefono(self):
+        digitos = re.sub(r'\D', '', self.cleaned_data['telefono'])
+        if len(digitos) != 8:
+            raise forms.ValidationError('El teléfono debe tener 8 dígitos.')
+        telefono = f'{digitos[:4]}-{digitos[4:]}'
+        repetido = Clientes.objects.filter(telefono=telefono)
+        if self.instance.pk:
+            repetido = repetido.exclude(pk=self.instance.pk)
+        if repetido.exists():
+            raise forms.ValidationError('Ya existe un cliente con ese teléfono.')
+        return telefono
+
+
+@solo_admin
+def clientes_lista(request):
+    q = request.GET.get('q', '').strip()
+    qs = Clientes.objects.order_by('nombre')
+    if q:
+        qs = qs.filter(Q(nombre__icontains=q) | Q(telefono__icontains=q))
+    return render(request, 'inventario/clientes_lista.html', contexto(
+        request, 'clientes', clientes=qs, q=q))
+
+
+@solo_admin
+def cliente_form(request, pk=None):
+    cliente = get_object_or_404(Clientes, pk=pk) if pk else None
+    if request.method == 'POST':
+        form = ClienteForm(request.POST, instance=cliente)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Cliente guardado correctamente.')
+            return redirect('clientes')
+    else:
+        form = ClienteForm(instance=cliente)
+    return render(request, 'inventario/cliente_form.html', contexto(
+        request, 'clientes', form=form, cliente=cliente))
+
+
+@solo_admin
+def cliente_eliminar(request, pk):
+    cliente = get_object_or_404(Clientes, pk=pk)
+    if request.method == 'POST':
+        if Ventas.objects.filter(id_cliente=cliente).exists():
+            messages.error(request, 'No se puede eliminar: el cliente tiene ventas registradas.')
+        else:
+            nombre = cliente.nombre
+            cliente.delete()
+            messages.success(request, f'Cliente "{nombre}" eliminado.')
+    return redirect('clientes')
+
+
+# ---------------------------------------------------------------
+# VENTAS (todos los roles; cada persona ve las suyas, el administrador ve todas)
+# ---------------------------------------------------------------
+METODOS_PAGO_BASE = ['Efectivo', 'Tarjeta', 'Transferencia']
+
+
+def _metodos_pago():
+    """Si la tabla está vacía, crea los métodos de pago básicos."""
+    if not MetodosPago.objects.exists():
+        for nombre in METODOS_PAGO_BASE:
+            MetodosPago.objects.create(nombre_metodo=nombre)
+    return MetodosPago.objects.order_by('nombre_metodo')
+
+
+def _leer_lineas(texto):
+    """Convierte el carrito enviado por el navegador en {id_producto: cantidad}."""
+    try:
+        datos = json.loads(texto)
+    except (ValueError, TypeError):
+        raise ValueError('El carrito no es válido.')
+    if not isinstance(datos, list) or not datos:
+        raise ValueError('Agrega al menos un producto a la venta.')
+    if len(datos) > 100:
+        raise ValueError('Hay demasiados productos en una sola venta.')
+    lineas = {}
+    for item in datos:
+        try:
+            producto_id = int(item.get('id'))
+            cantidad = int(item.get('cantidad'))
+        except (AttributeError, TypeError, ValueError):
+            raise ValueError('El carrito no es válido.')
+        if cantidad < 1 or cantidad > 9999:
+            raise ValueError('Las cantidades deben estar entre 1 y 9999.')
+        lineas[producto_id] = lineas.get(producto_id, 0) + cantidad
+    return lineas
+
+
+@login_requerido
+def venta_nueva(request):
+    es_admin = request.empleado.rol == 'Administrador'
+    metodos = _metodos_pago()
+    # Los datos de clientes solo los maneja el administrador.
+    clientes = Clientes.objects.order_by('nombre') if es_admin else []
+    error = ''
+    previas = []
+
+    if request.method == 'POST':
+        crudo = request.POST.get('lineas', '')
+        try:
+            lineas = _leer_lineas(crudo)
+
+            metodo_id = request.POST.get('metodo', '')
+            metodo = MetodosPago.objects.filter(pk=metodo_id).first() if metodo_id.isdigit() else None
+            if metodo is None:
+                raise ValueError('Elige el método de pago.')
+
+            cliente = None
+            cliente_id = request.POST.get('cliente', '')
+            if es_admin and cliente_id:
+                cliente = Clientes.objects.filter(pk=cliente_id).first() if cliente_id.isdigit() else None
+                if cliente is None:
+                    raise ValueError('El cliente elegido no existe.')
+
+            with transaction.atomic():
+                productos = {p.pk: p for p in
+                             Productos.objects.select_for_update().filter(pk__in=lineas.keys())}
+                if len(productos) != len(lineas):
+                    raise ValueError('Uno de los productos ya no existe.')
+                for producto_id, cantidad in lineas.items():
+                    p = productos[producto_id]
+                    if p.stock < cantidad:
+                        raise ValueError(f'No hay suficiente stock de "{p.nombre_producto}" '
+                                         f'(disponible: {p.stock}).')
+
+                venta = Ventas.objects.create(
+                    id_cliente=cliente, id_empleado=request.empleado,
+                    id_metodo_pago=metodo, fecha_venta=timezone.now())
+                for producto_id, cantidad in lineas.items():
+                    p = productos[producto_id]
+                    # El precio siempre sale de la base de datos, nunca del navegador.
+                    DetalleVenta.objects.create(
+                        id_venta=venta, id_producto=p, cantidad=cantidad,
+                        precio_venta=p.precio_producto)
+                    p.stock -= cantidad
+                    p.save(update_fields=['stock'])
+
+            messages.success(request, f'Venta #{venta.pk} registrada correctamente.')
+            return redirect('venta_detalle', pk=venta.pk)
+        except ValueError as problema:
+            error = str(problema)
+            # Se reconstruye el carrito para que no se pierda lo que se había armado.
+            try:
+                pedidas = _leer_lineas(crudo)
+            except ValueError:
+                pedidas = {}
+            for p in Productos.objects.filter(pk__in=pedidas.keys()):
+                previas.append({'id': p.pk, 'nombre': p.nombre_producto,
+                                'precio': float(p.precio_producto), 'stock': p.stock,
+                                'cantidad': min(pedidas[p.pk], max(p.stock, 1))})
+
+    return render(request, 'inventario/venta_nueva.html', contexto(
+        request, 'ventas', metodos=metodos, clientes=clientes, error=error, previas=previas))
+
+
+@login_requerido
+def venta_detalle(request, pk):
+    venta = get_object_or_404(
+        Ventas.objects.select_related('id_cliente', 'id_empleado', 'id_metodo_pago'), pk=pk)
+    es_admin = request.empleado.rol == 'Administrador'
+    if not es_admin and venta.id_empleado_id != request.empleado.id_empleado:
+        return render(request, 'inventario/sin_permiso.html', status=403)
+
+    lineas = []
+    total = 0
+    for d in venta.detalleventa_set.select_related('id_producto').order_by('id_detalle_venta'):
+        subtotal = d.cantidad * d.precio_venta
+        total += subtotal
+        lineas.append({'producto': d.id_producto.nombre_producto, 'cantidad': d.cantidad,
+                       'precio': d.precio_venta, 'subtotal': subtotal})
+    return render(request, 'inventario/venta_detalle.html', contexto(
+        request, 'ventas', venta=venta, lineas=lineas, total=total))
+
+
+@login_requerido
+def ventas_lista(request):
+    es_admin = request.empleado.rol == 'Administrador'
+    periodo = request.GET.get('periodo', 'hoy')
+
+    consulta = Ventas.objects.select_related('id_empleado', 'id_metodo_pago')
+    if not es_admin:
+        consulta = consulta.filter(id_empleado=request.empleado)
+
+    inicio_hoy = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+    if periodo == 'hoy':
+        consulta = consulta.filter(fecha_venta__gte=inicio_hoy)
+    elif periodo == 'semana':
+        consulta = consulta.filter(fecha_venta__gte=inicio_hoy - timedelta(days=6))
+    else:
+        periodo = 'todas'
+
+    consulta = consulta.annotate(total=Sum(
+        F('detalleventa__cantidad') * F('detalleventa__precio_venta'),
+        output_field=DecimalField())).order_by('-fecha_venta')
+    filas = list(consulta[:100])
+    suma = sum((v.total or 0) for v in filas)
+
+    return render(request, 'inventario/ventas_lista.html', contexto(
+        request, 'ventas', ventas=filas, periodo=periodo, suma=suma))
+
+
+# ---------------------------------------------------------------
+# MERMAS (todos pueden registrar; solo el administrador puede anular)
+# ---------------------------------------------------------------
+MOTIVOS_MERMA_BASE = ['Producto dañado', 'Vencido', 'Defecto de fábrica',
+                      'Pérdida o robo', 'Error de manejo']
+
+
+def _motivos_merma():
+    """Si la tabla está vacía, crea los motivos básicos."""
+    if not MotivosMerma.objects.exists():
+        for descripcion in MOTIVOS_MERMA_BASE:
+            MotivosMerma.objects.create(descripcion=descripcion)
+    return MotivosMerma.objects.order_by('descripcion')
+
+
+def _leer_mermas(texto):
+    """Convierte la lista enviada por el navegador en {(id_producto, id_motivo): cantidad}."""
+    try:
+        datos = json.loads(texto)
+    except (ValueError, TypeError):
+        raise ValueError('La lista no es válida.')
+    if not isinstance(datos, list) or not datos:
+        raise ValueError('Agrega al menos un producto.')
+    if len(datos) > 50:
+        raise ValueError('Hay demasiados productos en un solo registro.')
+    lineas = {}
+    for item in datos:
+        try:
+            producto_id = int(item.get('id'))
+            cantidad = int(item.get('cantidad'))
+            motivo_id = int(item.get('motivo'))
+        except (AttributeError, TypeError, ValueError):
+            raise ValueError('La lista no es válida.')
+        if cantidad < 1 or cantidad > 9999:
+            raise ValueError('Las cantidades deben estar entre 1 y 9999.')
+        clave = (producto_id, motivo_id)
+        lineas[clave] = lineas.get(clave, 0) + cantidad
+    return lineas
+
+
+@login_requerido
+def merma_nueva(request):
+    motivos = list(_motivos_merma())
+    motivos_json = [{'id': m.pk, 'nombre': m.descripcion} for m in motivos]
+    error = ''
+    previas = []
+
+    if request.method == 'POST':
+        crudo = request.POST.get('lineas', '')
+        try:
+            lineas = _leer_mermas(crudo)
+            validos = {m.pk: m for m in motivos}
+            por_producto = {}
+            for (producto_id, motivo_id), cantidad in lineas.items():
+                if motivo_id not in validos:
+                    raise ValueError('Elige el motivo de cada producto.')
+                por_producto[producto_id] = por_producto.get(producto_id, 0) + cantidad
+
+            with transaction.atomic():
+                productos = {p.pk: p for p in
+                             Productos.objects.select_for_update().filter(pk__in=por_producto.keys())}
+                if len(productos) != len(por_producto):
+                    raise ValueError('Uno de los productos ya no existe.')
+                for producto_id, total in por_producto.items():
+                    p = productos[producto_id]
+                    if p.stock < total:
+                        raise ValueError(f'No puedes dar de baja {total} de "{p.nombre_producto}": '
+                                         f'en el sistema hay {p.stock}.')
+                ahora = timezone.now()
+                for (producto_id, motivo_id), cantidad in lineas.items():
+                    RegistrosMerma.objects.create(
+                        id_producto=productos[producto_id], id_motivo=validos[motivo_id],
+                        cantidad=cantidad, fecha_merma=ahora)
+                for producto_id, total in por_producto.items():
+                    p = productos[producto_id]
+                    p.stock -= total
+                    p.save(update_fields=['stock'])
+
+            messages.success(request, f'Merma registrada: {len(por_producto)} producto(s) dados de baja.')
+            return redirect('mermas')
+        except ValueError as problema:
+            error = str(problema)
+            try:
+                pedidas = _leer_mermas(crudo)
+            except ValueError:
+                pedidas = {}
+            nombres = {p.pk: p for p in Productos.objects.filter(pk__in={k[0] for k in pedidas})}
+            for (producto_id, motivo_id), cantidad in pedidas.items():
+                p = nombres.get(producto_id)
+                if p:
+                    previas.append({'id': p.pk, 'nombre': p.nombre_producto, 'stock': p.stock,
+                                    'cantidad': min(cantidad, max(p.stock, 1)), 'motivo': motivo_id})
+
+    return render(request, 'inventario/merma_nueva.html', contexto(
+        request, 'mermas', motivos=motivos_json, error=error, previas=previas))
+
+
+@login_requerido
+def mermas_lista(request):
+    es_gestor = request.empleado.rol in ('Administrador', 'Encargado')
+    periodo = request.GET.get('periodo', 'semana')
+
+    consulta = RegistrosMerma.objects.select_related('id_producto', 'id_motivo')
+    inicio_hoy = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+    if periodo == 'hoy':
+        consulta = consulta.filter(fecha_merma__gte=inicio_hoy)
+    elif periodo == 'semana':
+        consulta = consulta.filter(fecha_merma__gte=inicio_hoy - timedelta(days=6))
+    else:
+        periodo = 'todas'
+
+    filas = []
+    total_costo = 0
+    for m in consulta.order_by('-fecha_merma', '-id_merma')[:100]:
+        costo = None
+        if es_gestor:  # el costo solo lo ven Administrador y Encargado
+            costo = float(m.id_producto.precio_compra) * m.cantidad
+            total_costo += costo
+        filas.append({'m': m, 'costo': costo})
+    unidades = sum(f['m'].cantidad for f in filas)
+
+    return render(request, 'inventario/mermas_lista.html', contexto(
+        request, 'mermas', filas=filas, periodo=periodo, unidades=unidades,
+        total_costo=total_costo if es_gestor else None))
+
+
+@solo_admin
+def merma_anular(request, pk):
+    if request.method == 'POST':
+        with transaction.atomic():
+            merma = RegistrosMerma.objects.select_for_update().filter(pk=pk).first()
+            if merma is None:
+                messages.error(request, 'Ese registro de merma ya no existe.')
+            else:
+                producto = Productos.objects.select_for_update().get(pk=merma.id_producto_id)
+                producto.stock += merma.cantidad
+                producto.save(update_fields=['stock'])
+                merma.delete()
+                messages.success(request, 'Merma anulada. El stock volvió al producto.')
+    return redirect('mermas')

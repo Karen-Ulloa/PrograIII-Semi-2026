@@ -52,6 +52,17 @@ urlpatterns = [
     path('asistente/', views_ia.asistente_pagina, name='asistente'),
     path('api/asistente/', views_ia.api_asistente, name='api_asistente'),
     path('api/asistente/limpiar/', views_ia.limpiar_asistente, name='limpiar_asistente'),
+    path('alertas/', views.alertas_lista, name='alertas'),
+    path('clientes/', views.clientes_lista, name='clientes'),
+    path('clientes/nuevo/', views.cliente_form, name='cliente_nuevo'),
+    path('clientes/<int:pk>/editar/', views.cliente_form, name='cliente_editar'),
+    path('clientes/<int:pk>/eliminar/', views.cliente_eliminar, name='cliente_eliminar'),
+    path('ventas/', views.ventas_lista, name='ventas'),
+    path('ventas/nueva/', views.venta_nueva, name='venta_nueva'),
+    path('ventas/<int:pk>/', views.venta_detalle, name='venta_detalle'),
+    path('mermas/', views.mermas_lista, name='mermas'),
+    path('mermas/nueva/', views.merma_nueva, name='merma_nueva'),
+    path('mermas/<int:pk>/anular/', views.merma_anular, name='merma_anular'),
 ]
 
 if settings.DEBUG:
