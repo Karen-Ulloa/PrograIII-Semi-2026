@@ -5,6 +5,7 @@ import re
 import secrets
 import time
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 from io import BytesIO
 from uuid import uuid4
@@ -498,7 +499,7 @@ def dashboard(request):
         total_productos=Productos.objects.count(),
         ventas_hoy=ventas_hoy.count(),
         total_hoy=total_hoy,
-        total_ordenes=OrdenesCompra.objects.count(),
+        total_ordenes=OrdenesCompra.objects.filter(estado='Pendiente').count(),
         actividad=Ventas.objects.order_by('-fecha_venta')[:5],
     ))
 
@@ -542,17 +543,10 @@ def alertas_lista(request):
 # PRODUCTOS
 # ---------------------------------------------------------------
 class ProductoForm(forms.ModelForm):
-    pasillo = forms.CharField(
-        required=False, max_length=50, label='Pasillo',
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 2'}))
-    estante = forms.CharField(
-        required=False, max_length=50, label='Estante',
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: B'}))
-
     class Meta:
         model = Productos
         fields = ['nombre_producto', 'id_categoria', 'precio_compra',
-                  'precio_producto', 'stock', 'stock_minimo']
+                  'precio_producto', 'stock', 'stock_minimo', 'id_ubicacion']
         labels = {
             'nombre_producto': 'Nombre y medida del producto',
             'id_categoria': 'Categoría',
@@ -568,10 +562,12 @@ class ProductoForm(forms.ModelForm):
             'precio_producto': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
             'stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
             'stock_minimo': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'id_ubicacion': forms.HiddenInput(),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['id_ubicacion'].required = False
         cat = self.fields['id_categoria']
         cat.queryset = Categorias.objects.order_by('nombre_categoria')
         cat.label_from_instance = lambda c: c.nombre_categoria
@@ -593,8 +589,6 @@ class ProductoForm(forms.ModelForm):
             valor = datos.get(campo)
             if valor is not None and valor < 0:
                 self.add_error(campo, 'No puede ser negativo.')
-        if bool(datos.get('pasillo')) != bool(datos.get('estante')):
-            self.add_error('estante', 'Escribe pasillo y estante, o deja los dos vacíos.')
         return datos
 
 
@@ -626,8 +620,7 @@ def api_productos(request):
             'id': p.id_producto,
             'nombre': p.nombre_producto,
             'categoria': p.id_categoria.nombre_categoria if p.id_categoria else '—',
-            'ubicacion': (f'Pasillo {p.id_ubicacion.pasillo} · Estante {p.id_ubicacion.estante}'
-                          if p.id_ubicacion else '—'),
+            'ubicacion': p.id_ubicacion.texto_corto() if p.id_ubicacion else '—',
             'stock': p.stock,
             'stock_minimo': p.stock_minimo,
             'precio_venta': float(p.precio_producto),
@@ -646,26 +639,20 @@ def producto_form(request, pk=None):
     if request.method == 'POST':
         form = ProductoForm(request.POST, instance=producto)
         if form.is_valid():
-            p = form.save(commit=False)
-            pasillo = form.cleaned_data['pasillo']
-            estante = form.cleaned_data['estante']
-            if pasillo and estante:
-                p.id_ubicacion = (Ubicaciones.objects.filter(pasillo=pasillo, estante=estante).first()
-                                  or Ubicaciones.objects.create(pasillo=pasillo, estante=estante))
-            else:
-                p.id_ubicacion = None
-            p.save()
+            form.save()
             messages.success(request, 'Producto guardado correctamente.')
             return redirect('productos')
     else:
-        inicial = {}
-        if producto and producto.id_ubicacion:
-            inicial = {'pasillo': producto.id_ubicacion.pasillo,
-                       'estante': producto.id_ubicacion.estante}
-        form = ProductoForm(instance=producto, initial=inicial)
+        form = ProductoForm(instance=producto)
 
+    ubicaciones = [
+        {'id': u.pk, 'bodega': u.bodega, 'pasillo': u.pasillo, 'estante': u.estante,
+         'nivel': u.nivel, 'detalle': u.detalle}
+        for u in Ubicaciones.objects.exclude(bodega='').order_by('bodega', 'pasillo', 'estante', 'nivel')
+    ]
     return render(request, 'inventario/producto_form.html', contexto(
-        request, 'productos', form=form, producto=producto))
+        request, 'productos', form=form, producto=producto, ubicaciones=ubicaciones,
+        ubicacion_actual=producto.id_ubicacion.texto_corto() if producto and producto.id_ubicacion else ''))
 
 
 @solo_admin
@@ -1462,3 +1449,148 @@ def merma_anular(request, pk):
                 merma.delete()
                 messages.success(request, 'Merma anulada. El stock volvió al producto.')
     return redirect('mermas')
+
+
+# ---------------------------------------------------------------
+# ÓRDENES DE COMPRA (administrador y encargado)
+# ---------------------------------------------------------------
+def _leer_orden(texto):
+    """Convierte la lista del navegador en {id_producto: (cantidad, precio)}."""
+    try:
+        datos = json.loads(texto)
+    except (ValueError, TypeError):
+        raise ValueError('La lista no es válida.')
+    if not isinstance(datos, list) or not datos:
+        raise ValueError('Agrega al menos un producto a la orden.')
+    if len(datos) > 100:
+        raise ValueError('Hay demasiados productos en una sola orden.')
+    lineas = {}
+    for item in datos:
+        try:
+            producto_id = int(item.get('id'))
+            cantidad = int(item.get('cantidad'))
+            precio = Decimal(str(item.get('precio'))).quantize(Decimal('0.01'))
+        except (AttributeError, TypeError, ValueError, InvalidOperation):
+            raise ValueError('La lista no es válida.')
+        if cantidad < 1 or cantidad > 99999:
+            raise ValueError('Las cantidades deben estar entre 1 y 99999.')
+        if precio < 0 or precio > Decimal('99999999.99'):
+            raise ValueError('Hay un precio de compra no válido.')
+        anterior = lineas.get(producto_id, (0, precio))[0]
+        lineas[producto_id] = (anterior + cantidad, precio)
+    return lineas
+
+
+@gestor
+def orden_nueva(request):
+    proveedores = Proveedores.objects.order_by('nombre_proveedor')
+    error = ''
+    previas = []
+
+    if request.method == 'POST':
+        crudo = request.POST.get('lineas', '')
+        try:
+            lineas = _leer_orden(crudo)
+            proveedor_id = request.POST.get('proveedor', '')
+            proveedor = (Proveedores.objects.filter(pk=proveedor_id).first()
+                         if proveedor_id.isdigit() else None)
+            if proveedor is None:
+                raise ValueError('Elige el proveedor.')
+            with transaction.atomic():
+                productos = {p.pk: p for p in Productos.objects.filter(pk__in=lineas.keys())}
+                if len(productos) != len(lineas):
+                    raise ValueError('Uno de los productos ya no existe.')
+                orden = OrdenesCompra.objects.create(
+                    id_proveedor=proveedor, fecha_compra=timezone.now(), estado='Pendiente')
+                for producto_id, (cantidad, precio) in lineas.items():
+                    DetalleCompra.objects.create(
+                        id_compra=orden, id_producto=productos[producto_id],
+                        cantidad=cantidad, precio_compra=precio)
+            messages.success(request, f'Orden de compra #{orden.pk} creada. Queda pendiente de recibir.')
+            return redirect('orden_detalle', pk=orden.pk)
+        except ValueError as problema:
+            error = str(problema)
+            try:
+                pedidas = _leer_orden(crudo)
+            except ValueError:
+                pedidas = {}
+            for p in Productos.objects.filter(pk__in=pedidas.keys()):
+                cantidad, precio = pedidas[p.pk]
+                previas.append({'id': p.pk, 'nombre': p.nombre_producto,
+                                'cantidad': cantidad, 'precio': float(precio)})
+    elif request.GET.get('desde') == 'alertas':
+        # Se arma la orden con los productos que están en alerta de stock.
+        for p in (Productos.objects.filter(stock__lte=F('stock_minimo'))
+                  .order_by('stock', 'nombre_producto')[:50]):
+            previas.append({'id': p.pk, 'nombre': p.nombre_producto,
+                            'cantidad': max(p.stock_minimo * 2 - p.stock, 1),
+                            'precio': float(p.precio_compra)})
+
+    return render(request, 'inventario/orden_nueva.html', contexto(
+        request, 'ordenes', proveedores=proveedores, error=error, previas=previas))
+
+
+@gestor
+def ordenes_lista(request):
+    estado = request.GET.get('estado', 'Pendiente')
+    consulta = OrdenesCompra.objects.select_related('id_proveedor')
+    if estado in ('Pendiente', 'Recibida', 'Cancelada'):
+        consulta = consulta.filter(estado=estado)
+    else:
+        estado = 'todas'
+    consulta = consulta.annotate(total=Sum(
+        F('detallecompra__cantidad') * F('detallecompra__precio_compra'),
+        output_field=DecimalField())).order_by('-fecha_compra')
+    return render(request, 'inventario/ordenes_lista.html', contexto(
+        request, 'ordenes', ordenes=list(consulta[:100]), estado=estado))
+
+
+@gestor
+def orden_detalle(request, pk):
+    orden = get_object_or_404(OrdenesCompra.objects.select_related('id_proveedor'), pk=pk)
+    lineas = []
+    total = 0
+    for d in orden.detallecompra_set.select_related('id_producto').order_by('id_detalle_compra'):
+        subtotal = d.cantidad * d.precio_compra
+        total += subtotal
+        lineas.append({'producto': d.id_producto.nombre_producto, 'cantidad': d.cantidad,
+                       'precio': d.precio_compra, 'subtotal': subtotal})
+    return render(request, 'inventario/orden_detalle.html', contexto(
+        request, 'ordenes', orden=orden, lineas=lineas, total=total))
+
+
+@gestor
+def orden_recibir(request, pk):
+    if request.method == 'POST':
+        with transaction.atomic():
+            orden = OrdenesCompra.objects.select_for_update().filter(pk=pk).first()
+            if orden is None:
+                messages.error(request, 'Esa orden no existe.')
+            elif orden.estado != 'Pendiente':
+                messages.error(request, 'Esa orden ya fue procesada.')
+            else:
+                for d in DetalleCompra.objects.filter(id_compra=orden):
+                    producto = Productos.objects.select_for_update().get(pk=d.id_producto_id)
+                    producto.stock += d.cantidad
+                    producto.save(update_fields=['stock'])
+                orden.estado = 'Recibida'
+                orden.fecha_recepcion = timezone.now()
+                orden.save(update_fields=['estado', 'fecha_recepcion'])
+                messages.success(request, f'Orden #{orden.pk} recibida. El stock de los productos aumentó.')
+        return redirect('orden_detalle', pk=pk)
+    return redirect('ordenes')
+
+
+@gestor
+def orden_cancelar(request, pk):
+    if request.method == 'POST':
+        with transaction.atomic():
+            orden = OrdenesCompra.objects.select_for_update().filter(pk=pk).first()
+            if orden is None or orden.estado != 'Pendiente':
+                messages.error(request, 'Solo se pueden cancelar órdenes pendientes.')
+            else:
+                orden.estado = 'Cancelada'
+                orden.save(update_fields=['estado'])
+                messages.success(request, f'Orden #{orden.pk} cancelada.')
+        return redirect('orden_detalle', pk=pk)
+    return redirect('ordenes')

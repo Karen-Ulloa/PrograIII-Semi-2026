@@ -123,6 +123,7 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
       <a class="item {% if activo == 'asistente' %}activo{% endif %}" href="{% url 'asistente' %}"><i class="bi bi-chat-left-text"></i> Asistente IA</a>
       {% if es_gestor %}
       <a class="item {% if activo == 'proveedores' %}activo{% endif %}" href="{% url 'proveedores' %}"><i class="bi bi-truck"></i> Proveedores</a>
+      <a class="item {% if activo == 'ordenes' %}activo{% endif %}" href="{% url 'ordenes' %}"><i class="bi bi-box-seam"></i> Órdenes de compra</a>
       {% endif %}
       {% if es_admin %}
       <a class="item {% if activo == 'clientes' %}activo{% endif %}" href="{% url 'clientes' %}"><i class="bi bi-people"></i> Clientes</a>
@@ -174,7 +175,7 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
   <a href="{% url 'productos' %}" class="{% if activo == 'productos' %}activo{% endif %}"><i class="bi bi-journal-text"></i><span>Productos</span></a>
   <a href="{% url 'ventas' %}" class="{% if activo == 'ventas' %}activo{% endif %}"><i class="bi bi-receipt"></i><span>Ventas</span></a>
   <a href="{% url 'asistente' %}" class="{% if activo == 'asistente' %}activo{% endif %}"><i class="bi bi-chat-left-text"></i><span>Asistente</span></a>
-  <button type="button" id="btn-mas" class="{% if activo == 'alertas' or activo == 'mermas' or activo == 'proveedores' or activo == 'clientes' or activo == 'empleados' or activo == 'perfil' or activo == 'codigo' %}activo{% endif %}"><i class="bi bi-grid"></i><span>Más</span>{% if alertas %}<span class="badge-n">{{ alertas }}</span>{% endif %}</button>
+  <button type="button" id="btn-mas" class="{% if activo == 'alertas' or activo == 'ordenes' or activo == 'mermas' or activo == 'proveedores' or activo == 'clientes' or activo == 'empleados' or activo == 'perfil' or activo == 'codigo' %}activo{% endif %}"><i class="bi bi-grid"></i><span>Más</span>{% if alertas %}<span class="badge-n">{{ alertas }}</span>{% endif %}</button>
 </nav>
 
 <!-- Hoja "Más" -->
@@ -191,6 +192,7 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
     <a class="hoja-item" href="#"><i class="bi bi-qr-code-scan"></i> Escanear</a>
     {% if es_gestor %}
     <a class="hoja-item" href="{% url 'proveedores' %}"><i class="bi bi-truck"></i> Proveedores</a>
+    <a class="hoja-item" href="{% url 'ordenes' %}"><i class="bi bi-box-seam"></i> Órdenes de compra</a>
     {% endif %}
     {% if es_admin %}
     <a class="hoja-item" href="{% url 'clientes' %}"><i class="bi bi-people"></i> Clientes</a>

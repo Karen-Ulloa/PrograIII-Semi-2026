@@ -35,10 +35,13 @@
   <div class="col-6 col-lg-3"><a href="#" class="acceso"><i class="bi bi-qr-code-scan"></i>Escanear código</a></div>
   <div class="col-6 col-lg-3"><a href="#" class="acceso"><i class="bi bi-camera"></i>Reconocer por foto</a></div>
   <div class="col-6 col-lg-3"><a href="{% url 'productos' %}" class="acceso"><i class="bi bi-journal-text"></i>Ver productos</a></div>
-  <a href="{% url 'merma_nueva' %}" class="acceso"><i class="bi bi-trash3"></i>Registrar merma</a>
-  <a href="{% url 'venta_nueva' %}" class="acceso"><i class="bi bi-receipt"></i>Nueva venta</a>
-  <a href="{% url 'ventas' %}" class="acceso"><i class="bi bi-bar-chart"></i>Historial ventas</a>
-  <a href="{% url 'asistente' %}" class="acceso"><i class="bi bi-chat-left-text"></i>Asistente IA</a>
+  <div class="col-6 col-lg-3"><a href="{% url 'merma_nueva' %}" class="acceso"><i class="bi bi-trash3"></i>Registrar merma</a></div>
+  <div class="col-6 col-lg-3"><a href="{% url 'venta_nueva' %}" class="acceso"><i class="bi bi-receipt"></i>Nueva venta</a></div>
+  <div class="col-6 col-lg-3"><a href="{% url 'ventas' %}" class="acceso"><i class="bi bi-bar-chart"></i>Historial ventas</a></div>
+  <div class="col-6 col-lg-3"><a href="{% url 'asistente' %}" class="acceso"><i class="bi bi-chat-left-text"></i>Asistente IA</a></div>
+  {% if es_gestor %}
+  <div class="col-6 col-lg-3"><a href="{% url 'orden_nueva' %}" class="acceso"><i class="bi bi-box-seam"></i>Orden de compra</a></div>
+  {% endif %}
 </div>
 
 <div class="row g-4 mt-1">
@@ -55,10 +58,10 @@
   <div class="col-lg-6">
     <div class="etiqueta">Resumen del día</div>
     <div class="row g-3">
-      <div class="col-6"><div class="caja dato"><small>Ventas hoy</small><span class="num" style="color:var(--vino)">${{ total_hoy|floatformat:2 }}</span><small>{{ ventas_hoy }} transacciones</small></div></div>
+      <div class="col-6"><div class="caja dato"><small>Ventas hoy</small><span class="num" style="color:var(--vino)">${{ total_hoy|floatformat:2 }}</span><small>{{ ventas_hoy }} transaccion{{ ventas_hoy|pluralize:"es" }}</small></div></div>
       <div class="col-6"><div class="caja dato"><small>Alertas activas</small><span class="num" style="color:#b45309">{{ alertas }}</span><small>productos bajo mínimo</small></div></div>
       <div class="col-6"><div class="caja dato"><small>Productos registrados</small><span class="num" style="color:#1e40af">{{ total_productos }}</span><small>en el inventario</small></div></div>
-      <div class="col-6"><div class="caja dato"><small>Órdenes de compra</small><span class="num" style="color:#166534">{{ total_ordenes }}</span><small>registradas</small></div></div>
+      <div class="col-6"><div class="caja dato"><small>Órdenes pendientes</small><span class="num" style="color:#166534">{{ total_ordenes }}</span><small>por recibir</small></div></div>
     </div>
   </div>
 </div>

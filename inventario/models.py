@@ -8,10 +8,22 @@ class Categorias(models.Model):
 
 class Ubicaciones(models.Model):
     id_ubicacion = models.AutoField(primary_key=True)
-    pasillo = models.CharField(max_length=50)
-    estante = models.CharField(max_length=50)
+    bodega = models.CharField(max_length=50, blank=True, default='')
+    pasillo = models.CharField(max_length=120)
+    estante = models.CharField(max_length=120)
+    nivel = models.CharField(max_length=30, blank=True, default='')
+    detalle = models.CharField(max_length=150, blank=True, default='')
+
     class Meta:
         db_table = 'ubicaciones'
+
+    def texto_corto(self):
+        """Ejemplo: Bodega 1 · Pasillo 5 · Estante 3 · Nivel 2"""
+        if not self.bodega:  # ubicaciones antiguas, guardadas solo con pasillo y estante
+            return f'Pasillo {self.pasillo} · Estante {self.estante}'
+        partes = [self.bodega, self.pasillo.split(' · ')[0],
+                  self.estante.split(' · ')[0], self.nivel]
+        return ' · '.join(p for p in partes if p)
 
 class MotivosMerma(models.Model):
     id_motivo = models.AutoField(primary_key=True)
@@ -68,6 +80,7 @@ class Productos(models.Model):
     precio_compra = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     stock = models.IntegerField(default=0)
     stock_minimo = models.IntegerField(default=5)
+    codigo_barras = models.CharField(max_length=50, null=True, blank=True, unique=True)
     class Meta:
         db_table = 'productos'
 
@@ -91,6 +104,8 @@ class OrdenesCompra(models.Model):
     id_compra = models.AutoField(primary_key=True)
     id_proveedor = models.ForeignKey(Proveedores, on_delete=models.CASCADE, db_column='id_proveedor')
     fecha_compra = models.DateTimeField()
+    estado = models.CharField(max_length=15, default='Pendiente')
+    fecha_recepcion = models.DateTimeField(null=True, blank=True)
     class Meta:
         db_table = 'ordenes_compra'
 

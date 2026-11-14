@@ -63,6 +63,11 @@ urlpatterns = [
     path('mermas/', views.mermas_lista, name='mermas'),
     path('mermas/nueva/', views.merma_nueva, name='merma_nueva'),
     path('mermas/<int:pk>/anular/', views.merma_anular, name='merma_anular'),
+    path('ordenes/', views.ordenes_lista, name='ordenes'),
+    path('ordenes/nueva/', views.orden_nueva, name='orden_nueva'),
+    path('ordenes/<int:pk>/', views.orden_detalle, name='orden_detalle'),
+    path('ordenes/<int:pk>/recibir/', views.orden_recibir, name='orden_recibir'),
+    path('ordenes/<int:pk>/cancelar/', views.orden_cancelar, name='orden_cancelar'),
 ]
 
 if settings.DEBUG:

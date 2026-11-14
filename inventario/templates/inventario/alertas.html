@@ -23,7 +23,10 @@
 {% block contenido %}
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <h2 class="m-0" style="font-size:34px">Alertas de stock</h2>
-  <a href="{% url 'asistente' %}" class="btn btn-outline-secondary btn-sm" style="border-radius:20px"><i class="bi bi-chat-left-text"></i> Preguntar al asistente</a>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if es_gestor and filas %}<a href="{% url 'orden_nueva' %}?desde=alertas" class="btn btn-vino btn-sm"><i class="bi bi-box-seam"></i> Crear orden de compra</a>{% endif %}
+    <a href="{% url 'asistente' %}" class="btn btn-outline-secondary btn-sm" style="border-radius:20px"><i class="bi bi-chat-left-text"></i> Preguntar al asistente</a>
+  </div>
 </div>
 
 <div class="resumen-alertas">
@@ -57,7 +60,7 @@
           <div class="fw-semibold">{{ f.producto.nombre_producto }}</div>
           <small class="text-muted">{% if f.producto.id_categoria %}{{ f.producto.id_categoria.nombre_categoria }}{% else %}Sin categoría{% endif %}</small>
         </td>
-        <td data-label="Ubicación">{% if f.producto.id_ubicacion %}Pasillo {{ f.producto.id_ubicacion.pasillo }} · Estante {{ f.producto.id_ubicacion.estante }}{% else %}<span class="text-muted">Sin asignar</span>{% endif %}</td>
+        <td data-label="Ubicación">{% if f.producto.id_ubicacion %}{{ f.producto.id_ubicacion.texto_corto }}{% else %}<span class="text-muted">Sin asignar</span>{% endif %}</td>
         <td data-label="Stock">
           {% if f.agotado %}<span class="badge bg-danger">{{ f.producto.stock }} · Agotado</span>
           {% else %}<span class="badge bg-warning text-dark">{{ f.producto.stock }} · Bajo</span>{% endif %}

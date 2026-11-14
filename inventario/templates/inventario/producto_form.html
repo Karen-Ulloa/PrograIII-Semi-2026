@@ -2,24 +2,65 @@
 {% block titulo %}{% if producto %}Editar producto{% else %}Nuevo producto{% endif %} - CampesinoStock{% endblock %}
 {% block encabezado %}{% if producto %}Editar producto{% else %}Nuevo producto{% endif %}{% endblock %}
 
+{% block extra_css %}
+<style>
+.bloque-ubicacion{background:#fff; border:1px solid var(--borde); border-radius:14px; padding:14px; margin-top:4px}
+.detalle-ubicacion{background:#f0e4e2; color:var(--vino); border-radius:10px; padding:8px 12px; font-size:13.5px; margin-top:10px}
+</style>
+{% endblock %}
+
 {% block contenido %}
+{{ ubicaciones|json_script:"datos-ubicaciones" }}
 <div style="max-width:760px; margin:0 auto">
   <a href="{% url 'productos' %}" class="small text-decoration-none" style="color:var(--vino)">&lt; Volver a productos</a>
   <h2 class="mt-2" style="font-size:34px">{% if producto %}Editar producto{% else %}Nuevo producto{% endif %}</h2>
 
-  <form method="post" class="caja mt-3">
+  <form method="post" class="caja mt-3" id="form-producto">
     {% csrf_token %}
     {% if form.non_field_errors %}<div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>{% endif %}
 
     <div class="row g-3">
       {% for campo in form %}
-      <div class="{% if campo.name == 'nombre_producto' %}col-12{% else %}col-md-6{% endif %}">
-        <label class="small fw-bold" for="{{ campo.id_for_label }}">{{ campo.label }}</label>
-        {{ campo }}
-        {% for e in campo.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
-        {% if campo.name == 'pasillo' %}<small class="text-muted">Dónde está el producto, para consultarlo al escanear.</small>{% endif %}
-      </div>
+        {% if not campo.is_hidden %}
+        <div class="{% if campo.name == 'nombre_producto' %}col-12{% else %}col-md-6{% endif %}">
+          <label class="small fw-bold" for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+          {{ campo }}
+          {% for e in campo.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+        </div>
+        {% endif %}
       {% endfor %}
+
+      <div class="col-12">
+        <label class="small fw-bold">Ubicación en la bodega</label>
+        {{ form.id_ubicacion }}
+        {% if ubicaciones %}
+        <div class="bloque-ubicacion">
+          <div class="row g-2">
+            <div class="col-6 col-md-3">
+              <label class="small text-muted" for="sel-bodega">Bodega</label>
+              <select id="sel-bodega" class="form-select form-select-sm"></select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="small text-muted" for="sel-area">Pasillo o zona</label>
+              <select id="sel-area" class="form-select form-select-sm" disabled></select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="small text-muted" for="sel-seccion">Estante o módulo</label>
+              <select id="sel-seccion" class="form-select form-select-sm" disabled></select>
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="small text-muted" for="sel-nivel">Nivel</label>
+              <select id="sel-nivel" class="form-select form-select-sm" disabled></select>
+            </div>
+          </div>
+          <div id="detalle-ubicacion" class="detalle-ubicacion" hidden></div>
+          {% if ubicacion_actual %}<div id="nota-actual" class="small text-muted mt-2">Ubicación actual: <b>{{ ubicacion_actual }}</b></div>{% endif %}
+          <button type="button" id="quitar-ubicacion" class="btn btn-link btn-sm p-0 mt-2" style="color:var(--vino)">Quitar ubicación</button>
+        </div>
+        {% else %}
+        <div class="alert alert-warning py-2 mb-0">Todavía no hay ubicaciones cargadas. Ejecuta <code>python manage.py cargar_ubicaciones</code>.</div>
+        {% endif %}
+      </div>
     </div>
 
     <div class="d-flex gap-2 mt-4">
@@ -28,4 +69,92 @@
     </div>
   </form>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var UBIC = JSON.parse(document.getElementById('datos-ubicaciones').textContent);
+var oculto = document.getElementById('id_id_ubicacion');
+var selBodega = document.getElementById('sel-bodega');
+
+if (selBodega && UBIC.length){
+  var selArea = document.getElementById('sel-area');
+  var selSeccion = document.getElementById('sel-seccion');
+  var selNivel = document.getElementById('sel-nivel');
+  var detalle = document.getElementById('detalle-ubicacion');
+  var nota = document.getElementById('nota-actual');
+
+  function unicos(lista, clave){
+    var vistos = [];
+    lista.forEach(function(u){ if (vistos.indexOf(u[clave]) === -1) vistos.push(u[clave]); });
+    return vistos;
+  }
+  function llenar(sel, valores, textoVacio, elegido){
+    sel.innerHTML = '<option value="">' + textoVacio + '</option>';
+    valores.forEach(function(v){
+      var op = document.createElement('option');
+      op.value = v;
+      op.textContent = v;
+      if (v === elegido) op.selected = true;
+      sel.appendChild(op);
+    });
+    sel.disabled = valores.length === 0;
+  }
+  function filtrar(b, a, s){
+    return UBIC.filter(function(u){
+      return (!b || u.bodega === b) && (!a || u.pasillo === a) && (!s || u.estante === s);
+    });
+  }
+  function actualizarOculto(){
+    var u = UBIC.find(function(x){
+      return x.bodega === selBodega.value && x.pasillo === selArea.value &&
+             x.estante === selSeccion.value && x.nivel === selNivel.value;
+    });
+    if (u){
+      oculto.value = u.id;
+      detalle.hidden = false;
+      detalle.textContent = 'Aquí se guarda: ' + u.detalle;
+      if (nota) nota.hidden = true;
+    } else {
+      detalle.hidden = true;
+    }
+    return u;
+  }
+  function cargar(b, a, s, n){
+    llenar(selBodega, unicos(UBIC, 'bodega'), 'Elige bodega', b);
+    llenar(selArea, b ? unicos(filtrar(b), 'pasillo') : [], 'Elige pasillo o zona', a);
+    llenar(selSeccion, a ? unicos(filtrar(b, a), 'estante') : [], 'Elige estante o módulo', s);
+    llenar(selNivel, s ? unicos(filtrar(b, a, s), 'nivel') : [], 'Elige nivel', n);
+  }
+
+  selBodega.addEventListener('change', function(){ oculto.value = ''; cargar(selBodega.value, '', '', ''); actualizarOculto(); });
+  selArea.addEventListener('change', function(){ oculto.value = ''; cargar(selBodega.value, selArea.value, '', ''); actualizarOculto(); });
+  selSeccion.addEventListener('change', function(){ oculto.value = ''; cargar(selBodega.value, selArea.value, selSeccion.value, ''); actualizarOculto(); });
+  selNivel.addEventListener('change', function(){ oculto.value = ''; actualizarOculto(); });
+
+  document.getElementById('quitar-ubicacion').addEventListener('click', function(){
+    oculto.value = '';
+    cargar('', '', '', '');
+    detalle.hidden = true;
+    if (nota) nota.hidden = true;
+  });
+
+  document.getElementById('form-producto').addEventListener('submit', function(e){
+    // Si se empezó a elegir la ubicación pero no se llegó al nivel, se avisa.
+    if (selBodega.value && !selNivel.value){
+      e.preventDefault();
+      alert('Elige la ubicación completa hasta el nivel, o usa "Quitar ubicación".');
+    }
+  });
+
+  // Estado inicial: si el producto ya tiene ubicación, se seleccionan sus listas
+  var actual = UBIC.find(function(u){ return String(u.id) === String(oculto.value); });
+  if (actual){
+    cargar(actual.bodega, actual.pasillo, actual.estante, actual.nivel);
+    actualizarOculto();
+  } else {
+    cargar('', '', '', '');
+  }
+}
+</script>
 {% endblock %}

@@ -51,8 +51,8 @@ def _ficha(p, es_gestor):
     datos = {
         'nombre': p.nombre_producto,
         'categoria': p.id_categoria.nombre_categoria if p.id_categoria else 'Sin categoría',
-        'ubicacion': (f'Pasillo {p.id_ubicacion.pasillo}, estante {p.id_ubicacion.estante}'
-                      if p.id_ubicacion else 'Sin ubicación asignada'),
+        'ubicacion': p.id_ubicacion.texto_corto() if p.id_ubicacion else 'Sin ubicación asignada',
+        'que_se_guarda_en_ese_lugar': p.id_ubicacion.detalle if p.id_ubicacion else '',
         'stock': p.stock,
         'stock_minimo': p.stock_minimo,
         'precio_venta': float(p.precio_producto),

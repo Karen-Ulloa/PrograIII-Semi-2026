@@ -1,0 +1,185 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Nueva orden de compra - CampesinoStock{% endblock %}
+{% block encabezado %}Orden de compra{% endblock %}
+
+{% block extra_css %}
+<style>
+.resultado{display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--borde)}
+.resultado:last-child{border-bottom:0}
+.resultado .info{flex:1; min-width:0}
+.resultado .info b{display:block; font-size:14.5px; line-height:1.25}
+.resultado .info small{color:var(--suave)}
+.btn-mas{width:42px; height:42px; border-radius:50%; border:0; background:var(--vino); color:#fff; font-size:20px; display:flex; align-items:center; justify-content:center; flex-shrink:0}
+.input-cant{width:84px; text-align:center}
+.input-precio{width:100px; text-align:center}
+.total-orden{display:flex; justify-content:space-between; align-items:baseline; padding:12px 0; border-top:2px solid var(--borde); margin-top:6px}
+.total-orden span{font-size:15px; color:var(--suave)}
+.total-orden b{font-family:'Barlow Condensed',sans-serif; font-size:38px; color:var(--vino); line-height:1}
+.vacio-lista{text-align:center; color:var(--suave); padding:26px 8px}
+.vacio-lista i{font-size:34px; display:block; opacity:.6; margin-bottom:6px}
+</style>
+{% endblock %}
+
+{% block contenido %}
+<div id="cfg" hidden data-api="{% url 'api_productos' %}"></div>
+{{ previas|json_script:"datos-previos" }}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h2 class="m-0" style="font-size:34px">Nueva orden de compra</h2>
+  <a href="{% url 'ordenes' %}" class="btn btn-outline-secondary btn-sm" style="border-radius:20px"><i class="bi bi-clock-history"></i> Ver órdenes</a>
+</div>
+
+{% if error %}<div class="alert alert-danger py-2">{{ error }}</div>{% endif %}
+{% if not proveedores %}
+<div class="alert alert-warning py-2">Primero registra un proveedor. <a href="{% url 'proveedor_nuevo' %}" style="color:var(--vino); font-weight:700">Agregar proveedor</a></div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="caja">
+      <label class="small fw-bold" for="buscar">2. Agrega productos a pedir</label>
+      <div class="input-group mt-1">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input type="search" id="buscar" class="form-control" placeholder="Nombre o categoría..." autocomplete="off">
+      </div>
+      <div id="resultados" class="mt-2"><div class="text-muted small py-2">Escribe para buscar productos.</div></div>
+      <a href="{% url 'orden_nueva' %}?desde=alertas" class="btn btn-outline-secondary btn-sm mt-2" style="border-radius:20px"><i class="bi bi-exclamation-triangle"></i> Cargar los productos en alerta</a>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <form method="post" id="form-orden" class="caja" autocomplete="off">
+      {% csrf_token %}
+      <input type="hidden" name="lineas" id="lineas">
+
+      <label class="small fw-bold" for="proveedor">1. Proveedor</label>
+      <select name="proveedor" id="proveedor" class="form-select mb-3" required>
+        <option value="">Elige un proveedor</option>
+        {% for p in proveedores %}<option value="{{ p.id_proveedor }}">{{ p.nombre_proveedor }}</option>{% endfor %}
+      </select>
+
+      <div class="small fw-bold mb-1">3. Detalle del pedido</div>
+      <div id="vacio-lista" class="vacio-lista"><i class="bi bi-box-seam"></i>Aún no agregaste productos.</div>
+      <table class="table tabla tabla-cards" id="tabla-orden" hidden>
+        <thead>
+          <tr><th>Producto</th><th>Cantidad</th><th>Precio de compra</th><th>Subtotal</th><th></th></tr>
+        </thead>
+        <tbody id="cuerpo-orden"></tbody>
+      </table>
+
+      <div class="total-orden"><span>Total estimado</span><b id="total">$0.00</b></div>
+      <p class="small text-muted mb-2">La orden queda <b>pendiente</b>. El stock sube cuando la marques como recibida.</p>
+      <button class="btn btn-vino w-100" id="btn-guardar"><i class="bi bi-check2-circle"></i> Crear orden</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var API = document.getElementById('cfg').dataset.api;
+var lista = [];
+var temporizador = null;
+var cuerpo = document.getElementById('cuerpo-orden');
+var tabla = document.getElementById('tabla-orden');
+var vacio = document.getElementById('vacio-lista');
+var resultados = document.getElementById('resultados');
+
+function esc(t){ var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+function dinero(n){ return '$' + Number(n).toFixed(2); }
+
+function pintar(){
+  var total = 0;
+  var html = '';
+  lista.forEach(function(p, i){
+    var subtotal = p.cantidad * p.precio;
+    total += subtotal;
+    html += '<tr>' +
+      '<td class="fw-semibold celda-titulo">' + esc(p.nombre) + '</td>' +
+      '<td data-label="Cantidad"><input type="number" class="form-control form-control-sm input-cant" min="1" max="99999" value="' + p.cantidad + '" data-i="' + i + '" data-campo="cantidad" aria-label="Cantidad"></td>' +
+      '<td data-label="Precio de compra"><input type="number" class="form-control form-control-sm input-precio" min="0" step="0.01" value="' + Number(p.precio).toFixed(2) + '" data-i="' + i + '" data-campo="precio" aria-label="Precio de compra"></td>' +
+      '<td data-label="Subtotal"><b>' + dinero(subtotal) + '</b></td>' +
+      '<td class="text-end celda-acciones"><button type="button" class="btn btn-sm btn-outline-danger quitar" data-i="' + i + '" aria-label="Quitar"><i class="bi bi-x-lg"></i></button></td>' +
+      '</tr>';
+  });
+  cuerpo.innerHTML = html;
+  tabla.hidden = lista.length === 0;
+  vacio.hidden = lista.length > 0;
+  document.getElementById('total').textContent = dinero(total);
+
+  cuerpo.querySelectorAll('input').forEach(function(campo){
+    campo.addEventListener('change', function(){
+      var p = lista[Number(campo.dataset.i)];
+      if (campo.dataset.campo === 'cantidad'){
+        var n = parseInt(campo.value, 10);
+        p.cantidad = (isNaN(n) || n < 1) ? 1 : n;
+      } else {
+        var v = parseFloat(campo.value);
+        p.precio = (isNaN(v) || v < 0) ? 0 : v;
+      }
+      pintar();
+    });
+  });
+  cuerpo.querySelectorAll('.quitar').forEach(function(b){
+    b.addEventListener('click', function(){ lista.splice(Number(b.dataset.i), 1); pintar(); });
+  });
+}
+
+function agregar(p){
+  var existente = lista.find(function(x){ return x.id === p.id; });
+  if (existente){ existente.cantidad++; }
+  else { lista.push({id: p.id, nombre: p.nombre, cantidad: 1, precio: p.precio_compra || 0}); }
+  pintar();
+}
+
+function buscar(){
+  var q = document.getElementById('buscar').value.trim();
+  if (q.length < 2){
+    resultados.innerHTML = '<div class="text-muted small py-2">Escribe al menos 2 letras para buscar.</div>';
+    return;
+  }
+  fetch(API + '?q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(function(data){
+    var encontrados = data.productos.slice(0, 8);
+    if (!encontrados.length){
+      resultados.innerHTML = '<div class="text-muted small py-2">No se encontraron productos.</div>';
+      return;
+    }
+    var html = '';
+    encontrados.forEach(function(p, i){
+      html += '<div class="resultado">' +
+        '<div class="info"><b>' + esc(p.nombre) + '</b><small>' + esc(p.categoria) + ' · Stock: ' + p.stock + ' (mín. ' + p.stock_minimo + ')</small></div>' +
+        '<button type="button" class="btn-mas" data-i="' + i + '" aria-label="Agregar"><i class="bi bi-plus-lg"></i></button></div>';
+    });
+    resultados.innerHTML = html;
+    resultados.querySelectorAll('.btn-mas').forEach(function(b){
+      b.addEventListener('click', function(){ agregar(encontrados[Number(b.dataset.i)]); });
+    });
+  }).catch(function(){
+    resultados.innerHTML = '<div class="text-danger small py-2">No se pudo buscar. Intenta de nuevo.</div>';
+  });
+}
+
+document.getElementById('buscar').addEventListener('input', function(){
+  clearTimeout(temporizador);
+  temporizador = setTimeout(buscar, 250);
+});
+
+document.getElementById('form-orden').addEventListener('submit', function(e){
+  if (lista.length === 0){
+    e.preventDefault();
+    alert('Agrega al menos un producto a la orden.');
+    return;
+  }
+  document.getElementById('lineas').value = JSON.stringify(
+    lista.map(function(p){ return {id: p.id, cantidad: p.cantidad, precio: p.precio}; }));
+  document.getElementById('btn-guardar').disabled = true;
+});
+
+try {
+  JSON.parse(document.getElementById('datos-previos').textContent).forEach(function(p){
+    lista.push({id: p.id, nombre: p.nombre, cantidad: p.cantidad, precio: p.precio});
+  });
+} catch (e) {}
+pintar();
+</script>
+{% endblock %}
