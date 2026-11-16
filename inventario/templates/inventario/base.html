@@ -116,7 +116,7 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
 
     <nav>
       <a class="item {% if activo == 'inicio' %}activo{% endif %}" href="{% url 'dashboard' %}"><i class="bi bi-house-door"></i> Inicio</a>
-      <a class="item" href="#"><i class="bi bi-qr-code-scan"></i> Escanear</a>
+      <a class="item {% if activo == 'escanear' %}activo{% endif %}" href="{% url 'escanear' %}"><i class="bi bi-qr-code-scan"></i> Escanear</a>
       <a class="item {% if activo == 'productos' %}activo{% endif %}" href="{% url 'productos' %}"><i class="bi bi-journal-text"></i> Productos</a>
       <a class="item {% if activo == 'ventas' %}activo{% endif %}" href="{% url 'ventas' %}"><i class="bi bi-receipt"></i> Ventas</a>
       <a class="item {% if activo == 'mermas' %}activo{% endif %}" href="{% url 'mermas' %}"><i class="bi bi-trash3"></i> Mermas</a>
@@ -174,8 +174,8 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
   <a href="{% url 'dashboard' %}" class="{% if activo == 'inicio' %}activo{% endif %}"><i class="bi bi-house-door"></i><span>Inicio</span></a>
   <a href="{% url 'productos' %}" class="{% if activo == 'productos' %}activo{% endif %}"><i class="bi bi-journal-text"></i><span>Productos</span></a>
   <a href="{% url 'ventas' %}" class="{% if activo == 'ventas' %}activo{% endif %}"><i class="bi bi-receipt"></i><span>Ventas</span></a>
-  <a href="{% url 'asistente' %}" class="{% if activo == 'asistente' %}activo{% endif %}"><i class="bi bi-chat-left-text"></i><span>Asistente</span></a>
-  <button type="button" id="btn-mas" class="{% if activo == 'alertas' or activo == 'ordenes' or activo == 'mermas' or activo == 'proveedores' or activo == 'clientes' or activo == 'empleados' or activo == 'perfil' or activo == 'codigo' %}activo{% endif %}"><i class="bi bi-grid"></i><span>Más</span>{% if alertas %}<span class="badge-n">{{ alertas }}</span>{% endif %}</button>
+  <a href="{% url 'escanear' %}" class="{% if activo == 'escanear' %}activo{% endif %}"><i class="bi bi-qr-code-scan"></i><span>Escanear</span></a>
+  <button type="button" id="btn-mas" class="{% if activo == 'asistente' or activo == 'alertas' or activo == 'ordenes' or activo == 'mermas' or activo == 'proveedores' or activo == 'clientes' or activo == 'empleados' or activo == 'perfil' or activo == 'codigo' %}activo{% endif %}"><i class="bi bi-grid"></i><span>Más</span>{% if alertas %}<span class="badge-n">{{ alertas }}</span>{% endif %}</button>
 </nav>
 
 <!-- Hoja "Más" -->
@@ -189,7 +189,7 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
     </a>
     <a class="hoja-item" href="{% url 'alertas' %}"><i class="bi bi-exclamation-triangle"></i> Alertas{% if alertas %}<span class="badge-n" style="margin-left:auto">{{ alertas }}</span>{% endif %}</a>
     <a class="hoja-item" href="{% url 'mermas' %}"><i class="bi bi-trash3"></i> Mermas</a>
-    <a class="hoja-item" href="#"><i class="bi bi-qr-code-scan"></i> Escanear</a>
+    <a class="hoja-item" href="{% url 'asistente' %}"><i class="bi bi-chat-left-text"></i> Asistente IA</a>
     {% if es_gestor %}
     <a class="hoja-item" href="{% url 'proveedores' %}"><i class="bi bi-truck"></i> Proveedores</a>
     <a class="hoja-item" href="{% url 'ordenes' %}"><i class="bi bi-box-seam"></i> Órdenes de compra</a>

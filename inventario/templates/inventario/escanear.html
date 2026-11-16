@@ -1,0 +1,264 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Escanear código - CampesinoStock{% endblock %}
+{% block encabezado %}Escanear{% endblock %}
+
+{% block extra_css %}
+<style>
+.escaner{max-width:760px; margin:0 auto}
+#lector{width:100%; border-radius:14px; overflow:hidden; background:#1c1417; min-height:0}
+#lector:empty{display:none}
+.res-card{border-radius:16px}
+.res-nombre{font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:28px; line-height:1.1}
+.ubic-grande{background:#f0e4e2; color:var(--vino); border-radius:12px; padding:12px 14px; font-weight:700; font-size:17px}
+.ubic-grande small{display:block; font-weight:400; color:#6b4a4d; font-size:13px; margin-top:2px}
+.dato-res{display:flex; justify-content:space-between; gap:12px; padding:6px 0; border-bottom:1px solid var(--borde); font-size:14.5px}
+.dato-res:last-child{border-bottom:0}
+.dato-res span:first-child{color:var(--suave)}
+.opcion{display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--borde)}
+.opcion:last-child{border-bottom:0}
+.opcion .info{flex:1; min-width:0}
+.opcion .info b{display:block; font-size:14.5px; line-height:1.25}
+.opcion .info small{color:var(--suave)}
+</style>
+{% endblock %}
+
+{% block contenido %}
+<div id="cfg" hidden
+     data-csrf="{{ csrf_token }}"
+     data-gestor="{{ es_gestor|yesno:'true,false' }}"
+     data-api="{% url 'api_producto_codigo' %}"
+     data-asignar="{% url 'api_asignar_codigo' %}"
+     data-buscar="{% url 'api_productos' %}"
+     data-venta="{% url 'venta_nueva' %}"
+     data-editar="{% url 'producto_editar' 0 %}"></div>
+
+<div class="escaner">
+  <h2 class="mb-3" style="font-size:34px">Escanear código</h2>
+
+  <div class="caja mb-3">
+    <div id="aviso-seguro" class="alert alert-info py-2 small" hidden>
+      La cámara en vivo solo funciona en páginas seguras (https) o en <b>localhost</b>. Aquí puedes usar
+      <b>Escanear con foto</b> o escribir el código.
+    </div>
+
+    <div id="lector"></div>
+    <div id="lector-foto" hidden></div>
+
+    <div class="d-flex flex-wrap gap-2 mt-1">
+      <button type="button" class="btn btn-vino" id="btn-iniciar"><i class="bi bi-camera-video"></i> Iniciar cámara</button>
+      <button type="button" class="btn btn-outline-secondary" id="btn-detener" style="border-radius:30px" hidden><i class="bi bi-stop-circle"></i> Detener</button>
+      <label class="btn btn-outline-secondary mb-0" style="border-radius:30px" for="foto-codigo"><i class="bi bi-image"></i> Escanear con foto</label>
+      <input type="file" id="foto-codigo" accept="image/*" capture="environment" hidden>
+    </div>
+
+    <form id="form-manual" class="mt-3" autocomplete="off">
+      <label class="small fw-bold" for="codigo-manual">O escribe el código</label>
+      <div class="input-group">
+        <input type="text" id="codigo-manual" class="form-control" placeholder="Ej: CS00012" maxlength="50">
+        <button class="btn btn-vino">Buscar</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="resultado"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+var CFG = document.getElementById('cfg').dataset;
+var ES_GESTOR = CFG.gestor === 'true';
+var lector = null;
+var camaraActiva = false;
+var seguro = !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+var resultado = document.getElementById('resultado');
+var btnIniciar = document.getElementById('btn-iniciar');
+var btnDetener = document.getElementById('btn-detener');
+
+function esc(t){ var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+function dinero(n){ return '$' + Number(n).toFixed(2); }
+
+function opciones(){
+  var F = Html5QrcodeSupportedFormats;
+  return {verbose: false, formatsToSupport: [F.QR_CODE, F.EAN_13, F.EAN_8, F.CODE_128, F.CODE_39, F.UPC_A, F.UPC_E, F.ITF]};
+}
+
+function aviso(texto, clase){
+  resultado.innerHTML = '<div class="alert alert-' + (clase || 'warning') + ' py-2">' + esc(texto) + '</div>';
+}
+
+/* ---------- Cámara en vivo ---------- */
+function iniciar(){
+  if (!seguro){ document.getElementById('aviso-seguro').hidden = false; return; }
+  lector = new Html5Qrcode('lector', opciones());
+  lector.start({facingMode: 'environment'}, {fps: 10, qrbox: {width: 240, height: 240}},
+    function(texto){ detener().then(function(){ buscar(texto); }); },
+    function(){}
+  ).then(function(){
+    camaraActiva = true;
+    btnIniciar.hidden = true;
+    btnDetener.hidden = false;
+  }).catch(function(){
+    aviso('No se pudo abrir la cámara. Revisa que diste permiso en el navegador, o usa "Escanear con foto".');
+  });
+}
+
+function detener(){
+  btnIniciar.hidden = false;
+  btnDetener.hidden = true;
+  if (lector && camaraActiva){
+    camaraActiva = false;
+    return lector.stop().then(function(){ lector.clear(); }).catch(function(){});
+  }
+  return Promise.resolve();
+}
+
+btnIniciar.addEventListener('click', iniciar);
+btnDetener.addEventListener('click', detener);
+if (!seguro){ document.getElementById('aviso-seguro').hidden = false; }
+
+/* ---------- Escanear con una foto (funciona sin https en el celular) ---------- */
+/* Reduce la foto: las fotos de celular son muy grandes y así se leen mejor */
+function reducirFoto(archivo, maximo){
+  return createImageBitmap(archivo).then(function(imagen){
+    var escala = Math.min(1, maximo / Math.max(imagen.width, imagen.height));
+    var lienzo = document.createElement('canvas');
+    lienzo.width = Math.round(imagen.width * escala);
+    lienzo.height = Math.round(imagen.height * escala);
+    lienzo.getContext('2d').drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
+    return new Promise(function(resolver){
+      lienzo.toBlob(function(blob){ resolver(new File([blob], 'foto.jpg', {type: 'image/jpeg'})); }, 'image/jpeg', 0.92);
+    });
+  });
+}
+
+/* Lee el código de una foto: primero con el detector del navegador (si existe) y luego con varios tamaños */
+async function leerFoto(archivo){
+  if ('BarcodeDetector' in window){
+    try {
+      var detector = new BarcodeDetector();
+      var resultados = await detector.detect(await createImageBitmap(archivo));
+      if (resultados.length) return resultados[0].rawValue;
+    } catch (x) {}
+  }
+  var tamanos = [1000, 1600, 600, 0];
+  for (var i = 0; i < tamanos.length; i++){
+    try {
+      var imagen = tamanos[i] ? await reducirFoto(archivo, tamanos[i]) : archivo;
+      var temporal = new Html5Qrcode('lector-foto', opciones());
+      var texto = await temporal.scanFile(imagen, false);
+      try { temporal.clear(); } catch (x) {}
+      return texto;
+    } catch (x) {}
+  }
+  throw new Error('sin código');
+}
+
+document.getElementById('foto-codigo').addEventListener('change', function(e){
+  var archivo = e.target.files[0];
+  if (!archivo) return;
+  aviso('Leyendo el código de la foto...', 'info');
+  leerFoto(archivo).then(function(texto){
+    buscar(texto);
+  }).catch(function(){
+    aviso('No se pudo leer ningún código en la foto. Acércate para que el código llene la foto, con buena luz y sin reflejos. Si sigue fallando, escribe el número.');
+  }).then(function(){
+    e.target.value = '';
+  });
+});
+
+/* ---------- Código escrito a mano ---------- */
+document.getElementById('form-manual').addEventListener('submit', function(e){
+  e.preventDefault();
+  var campo = document.getElementById('codigo-manual');
+  if (campo.value.trim()) buscar(campo.value.trim());
+});
+
+/* ---------- Buscar el producto ---------- */
+function buscar(codigo){
+  codigo = String(codigo).trim();
+  aviso('Buscando ' + codigo + '...', 'info');
+  fetch(CFG.api + '?codigo=' + encodeURIComponent(codigo)).then(function(r){ return r.json(); }).then(function(d){
+    if (d.encontrado){ mostrarProducto(d.producto); }
+    else { mostrarNoEncontrado(codigo, d.mensaje); }
+  }).catch(function(){ aviso('No se pudo consultar el producto. Intenta de nuevo.'); });
+}
+
+function mostrarProducto(p){
+  var colores = {agotado: ['danger', 'Agotado'], bajo: ['warning text-dark', 'Stock bajo'], ok: ['success', 'En stock']};
+  var estado = colores[p.estado] || colores.ok;
+  var html = '<div class="caja res-card">' +
+    '<div class="d-flex justify-content-between align-items-start gap-2 mb-2">' +
+      '<div><div class="res-nombre">' + esc(p.nombre) + '</div><small class="text-muted">' + esc(p.categoria) + (p.codigo ? ' · ' + esc(p.codigo) : '') + '</small></div>' +
+      '<span class="badge bg-' + estado[0] + '">' + estado[1] + '</span></div>' +
+    '<div class="ubic-grande mb-2"><i class="bi bi-geo-alt-fill"></i> ' + esc(p.ubicacion) +
+      (p.detalle_ubicacion ? '<small>Aquí se guarda: ' + esc(p.detalle_ubicacion) + '</small>' : '') + '</div>' +
+    '<div class="dato-res"><span>Stock</span><b>' + p.stock + ' <small class="text-muted fw-normal">(mínimo ' + p.stock_minimo + ')</small></b></div>' +
+    '<div class="dato-res"><span>Precio de venta</span><b>' + dinero(p.precio_venta) + '</b></div>' +
+    (p.precio_compra !== undefined ? '<div class="dato-res"><span>Precio de compra</span><b>' + dinero(p.precio_compra) + '</b></div>' : '') +
+    '<div class="d-flex flex-wrap gap-2 mt-3">' +
+      (p.stock > 0 ? '<a class="btn btn-vino" href="' + CFG.venta + '?producto=' + p.id + '"><i class="bi bi-receipt"></i> Vender</a>' : '') +
+      (ES_GESTOR ? '<a class="btn btn-outline-secondary" style="border-radius:30px" href="' + CFG.editar.replace('/0/', '/' + p.id + '/') + '"><i class="bi bi-pencil"></i> Editar</a>' : '') +
+      '<button type="button" class="btn btn-outline-secondary" style="border-radius:30px" id="btn-otro"><i class="bi bi-upc-scan"></i> Escanear otro</button>' +
+    '</div></div>';
+  resultado.innerHTML = html;
+  document.getElementById('btn-otro').addEventListener('click', function(){
+    resultado.innerHTML = '';
+    document.getElementById('codigo-manual').value = '';
+    if (seguro) iniciar();
+  });
+  resultado.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+function mostrarNoEncontrado(codigo, mensaje){
+  var html = '<div class="caja res-card"><div class="fw-bold mb-1"><i class="bi bi-question-circle" style="color:var(--vino)"></i> Código no registrado</div>' +
+    '<div class="text-muted mb-2">' + esc(mensaje || ('Ningún producto tiene el código ' + codigo + '.')) + '</div>';
+  if (ES_GESTOR && !mensaje){
+    html += '<div class="small fw-bold mb-1">Asignar este código a un producto</div>' +
+      '<input type="search" id="buscar-asignar" class="form-control" placeholder="Busca el producto por nombre..." autocomplete="off">' +
+      '<div id="lista-asignar" class="mt-2"></div>' +
+      '<small class="text-muted">Si el producto ya tenía un código, se reemplaza por este.</small>';
+  } else if (!mensaje) {
+    html += '<div class="small text-muted">Pide a un Encargado o al Administrador que registre este código.</div>';
+  }
+  html += '</div>';
+  resultado.innerHTML = html;
+
+  var campo = document.getElementById('buscar-asignar');
+  if (!campo) return;
+  var espera = null;
+  campo.addEventListener('input', function(){
+    clearTimeout(espera);
+    espera = setTimeout(function(){
+      var q = campo.value.trim();
+      var lista = document.getElementById('lista-asignar');
+      if (q.length < 2){ lista.innerHTML = ''; return; }
+      fetch(CFG.buscar + '?q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(function(d){
+        var items = d.productos.slice(0, 6);
+        if (!items.length){ lista.innerHTML = '<div class="text-muted small py-2">No se encontraron productos.</div>'; return; }
+        lista.innerHTML = items.map(function(p, i){
+          return '<div class="opcion"><div class="info"><b>' + esc(p.nombre) + '</b><small>' + esc(p.categoria) + '</small></div>' +
+                 '<button type="button" class="btn btn-sm btn-vino asignar" data-i="' + i + '">Asignar</button></div>';
+        }).join('');
+        lista.querySelectorAll('.asignar').forEach(function(b){
+          b.addEventListener('click', function(){ asignar(codigo, items[Number(b.dataset.i)]); });
+        });
+      });
+    }, 250);
+  });
+}
+
+function asignar(codigo, producto){
+  fetch(CFG.asignar, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CFG.csrf},
+    body: JSON.stringify({codigo: codigo, producto_id: producto.id})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.ok){ mostrarProducto(d.producto); }
+    else { alert(d.mensaje || 'No se pudo asignar el código.'); }
+  }).catch(function(){ alert('No se pudo asignar el código. Intenta de nuevo.'); });
+}
+</script>
+{% endblock %}

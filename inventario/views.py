@@ -24,6 +24,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.views.decorators.http import require_POST
 from PIL import Image, ImageOps, UnidentifiedImageError
 from requests.exceptions import RequestException
 from twilio.base.exceptions import TwilioException
@@ -546,7 +547,7 @@ class ProductoForm(forms.ModelForm):
     class Meta:
         model = Productos
         fields = ['nombre_producto', 'id_categoria', 'precio_compra',
-                  'precio_producto', 'stock', 'stock_minimo', 'id_ubicacion']
+                  'precio_producto', 'stock', 'stock_minimo', 'codigo_barras', 'id_ubicacion']
         labels = {
             'nombre_producto': 'Nombre y medida del producto',
             'id_categoria': 'Categoría',
@@ -554,6 +555,7 @@ class ProductoForm(forms.ModelForm):
             'precio_producto': 'Precio de venta (USD)',
             'stock': 'Stock actual',
             'stock_minimo': 'Stock mínimo (para alertas)',
+            'codigo_barras': 'Código de barras o QR (opcional)',
         }
         widgets = {
             'nombre_producto': forms.TextInput(attrs={'class': 'form-control'}),
@@ -563,6 +565,7 @@ class ProductoForm(forms.ModelForm):
             'stock': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
             'stock_minimo': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
             'id_ubicacion': forms.HiddenInput(),
+            'codigo_barras': forms.TextInput(attrs={'class': 'form-control', 'autocomplete': 'off'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -582,6 +585,20 @@ class ProductoForm(forms.ModelForm):
         if repetido.exists():
             raise forms.ValidationError('Ya existe un producto con ese nombre.')
         return nombre
+
+    def clean_codigo_barras(self):
+        codigo = (self.cleaned_data.get('codigo_barras') or '').strip()
+        if not codigo:
+            return None
+        if not re.fullmatch(r'[A-Za-z0-9._\-]{3,50}', codigo):
+            raise forms.ValidationError(
+                'Usa solo letras, números, punto, guion o guion bajo (de 3 a 50 caracteres).')
+        repetido = Productos.objects.filter(codigo_barras=codigo)
+        if self.instance.pk:
+            repetido = repetido.exclude(pk=self.instance.pk)
+        if repetido.exists():
+            raise forms.ValidationError('Ese código ya está asignado a otro producto.')
+        return codigo
 
     def clean(self):
         datos = super().clean()
@@ -1258,6 +1275,12 @@ def venta_nueva(request):
                 previas.append({'id': p.pk, 'nombre': p.nombre_producto,
                                 'precio': float(p.precio_producto), 'stock': p.stock,
                                 'cantidad': min(pedidas[p.pk], max(p.stock, 1))})
+    elif request.GET.get('producto', '').isdigit():
+        elegido = Productos.objects.filter(pk=int(request.GET['producto'])).first()
+        if elegido and elegido.stock > 0:
+            previas.append({'id': elegido.pk, 'nombre': elegido.nombre_producto,
+                            'precio': float(elegido.precio_producto), 'stock': elegido.stock,
+                            'cantidad': 1})
 
     return render(request, 'inventario/venta_nueva.html', contexto(
         request, 'ventas', metodos=metodos, clientes=clientes, error=error, previas=previas))
@@ -1594,3 +1617,105 @@ def orden_cancelar(request, pk):
                 messages.success(request, f'Orden #{orden.pk} cancelada.')
         return redirect('orden_detalle', pk=pk)
     return redirect('ordenes')
+
+
+# ---------------------------------------------------------------
+# ESCÁNER DE CÓDIGOS Y ETIQUETAS QR
+# ---------------------------------------------------------------
+CODIGO_VALIDO = re.compile(r'[A-Za-z0-9._\-]{3,50}')
+
+
+def _datos_producto(p, es_gestor):
+    estado = 'agotado' if p.stock <= 0 else ('bajo' if p.stock <= p.stock_minimo else 'ok')
+    datos = {
+        'id': p.pk,
+        'nombre': p.nombre_producto,
+        'categoria': p.id_categoria.nombre_categoria if p.id_categoria else 'Sin categoría',
+        'codigo': p.codigo_barras or '',
+        'ubicacion': p.id_ubicacion.texto_corto() if p.id_ubicacion else 'Sin ubicación asignada',
+        'detalle_ubicacion': p.id_ubicacion.detalle if p.id_ubicacion else '',
+        'stock': p.stock,
+        'stock_minimo': p.stock_minimo,
+        'estado': estado,
+        'precio_venta': float(p.precio_producto),
+    }
+    if es_gestor:  # el precio de compra solo lo ven Administrador y Encargado
+        datos['precio_compra'] = float(p.precio_compra)
+    return datos
+
+
+@login_requerido
+def escanear(request):
+    return render(request, 'inventario/escanear.html', contexto(request, 'escanear'))
+
+
+@login_requerido
+def api_producto_codigo(request):
+    codigo = request.GET.get('codigo', '').strip()
+    if not codigo or len(codigo) > 100:
+        return JsonResponse({'encontrado': False, 'mensaje': 'El código no es válido.'}, status=400)
+    producto = (Productos.objects.select_related('id_categoria', 'id_ubicacion')
+                .filter(codigo_barras=codigo).first())
+    if producto is None:
+        return JsonResponse({'encontrado': False, 'codigo': codigo})
+    es_gestor = request.empleado.rol in ('Administrador', 'Encargado')
+    return JsonResponse({'encontrado': True, 'producto': _datos_producto(producto, es_gestor)})
+
+
+@gestor
+@require_POST
+def api_asignar_codigo(request):
+    try:
+        datos = json.loads(request.body.decode('utf-8'))
+        codigo = str(datos.get('codigo', '')).strip()
+        producto_id = int(datos.get('producto_id'))
+    except (ValueError, TypeError, UnicodeDecodeError, AttributeError):
+        return JsonResponse({'ok': False, 'mensaje': 'Datos no válidos.'}, status=400)
+    if not CODIGO_VALIDO.fullmatch(codigo):
+        return JsonResponse({'ok': False, 'mensaje': 'El código solo puede tener letras, números, '
+                             'punto, guion o guion bajo (3 a 50 caracteres).'}, status=400)
+    producto = Productos.objects.select_related('id_categoria', 'id_ubicacion').filter(pk=producto_id).first()
+    if producto is None:
+        return JsonResponse({'ok': False, 'mensaje': 'El producto no existe.'}, status=404)
+    if Productos.objects.filter(codigo_barras=codigo).exclude(pk=producto.pk).exists():
+        return JsonResponse({'ok': False, 'mensaje': 'Ese código ya pertenece a otro producto.'}, status=409)
+    producto.codigo_barras = codigo
+    producto.save(update_fields=['codigo_barras'])
+    return JsonResponse({'ok': True, 'producto': _datos_producto(producto, True)})
+
+
+@gestor
+def productos_etiquetas(request):
+    q = request.GET.get('q', '').strip()
+    ver = request.GET.get('ver', 'todos')
+    consulta = Productos.objects.select_related('id_categoria', 'id_ubicacion').order_by('nombre_producto')
+    if q:
+        consulta = consulta.filter(Q(nombre_producto__icontains=q) |
+                                   Q(id_categoria__nombre_categoria__icontains=q))
+    if ver == 'sin_codigo':
+        consulta = consulta.filter(codigo_barras__isnull=True)
+    else:
+        ver = 'todos'
+        consulta = consulta.filter(codigo_barras__isnull=False)
+    productos = [{'nombre': p.nombre_producto, 'codigo': p.codigo_barras,
+                  'ubicacion': p.id_ubicacion.texto_corto() if p.id_ubicacion else 'Sin ubicación'}
+                 for p in consulta[:300]]
+    return render(request, 'inventario/productos_etiquetas.html', contexto(
+        request, 'productos', productos=productos, q=q, ver=ver,
+        sin_codigo=Productos.objects.filter(codigo_barras__isnull=True).count()))
+
+
+@gestor
+@require_POST
+def generar_codigos(request):
+    cantidad = 0
+    with transaction.atomic():
+        for p in Productos.objects.select_for_update().filter(codigo_barras__isnull=True):
+            codigo = f'CS{p.pk:05d}'
+            if Productos.objects.filter(codigo_barras=codigo).exists():
+                codigo = f'CS{p.pk:05d}X'
+            p.codigo_barras = codigo
+            p.save(update_fields=['codigo_barras'])
+            cantidad += 1
+    messages.success(request, f'Se generaron códigos para {cantidad} producto(s).')
+    return redirect('etiquetas')

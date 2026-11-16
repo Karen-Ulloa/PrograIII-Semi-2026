@@ -68,6 +68,11 @@ urlpatterns = [
     path('ordenes/<int:pk>/', views.orden_detalle, name='orden_detalle'),
     path('ordenes/<int:pk>/recibir/', views.orden_recibir, name='orden_recibir'),
     path('ordenes/<int:pk>/cancelar/', views.orden_cancelar, name='orden_cancelar'),
+    path('escanear/', views.escanear, name='escanear'),
+    path('api/producto-codigo/', views.api_producto_codigo, name='api_producto_codigo'),
+    path('api/asignar-codigo/', views.api_asignar_codigo, name='api_asignar_codigo'),
+    path('productos/etiquetas/', views.productos_etiquetas, name='etiquetas'),
+    path('productos/etiquetas/generar/', views.generar_codigos, name='generar_codigos'),
 ]
 
 if settings.DEBUG:

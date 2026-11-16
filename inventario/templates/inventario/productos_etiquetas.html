@@ -1,0 +1,130 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Etiquetas QR - CampesinoStock{% endblock %}
+{% block encabezado %}Etiquetas QR{% endblock %}
+
+{% block extra_css %}
+<style>
+.rejilla-etq{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:12px}
+.etq{background:#fff; border:1px solid var(--borde); border-radius:12px; padding:12px; text-align:center; break-inside:avoid; page-break-inside:avoid}
+.etq .qr{display:flex; justify-content:center; margin-bottom:8px}
+.etq .qr img, .etq .qr canvas{max-width:100%}
+.etq .barras{display:flex; justify-content:center; margin:2px 0 6px}
+.etq .barras svg{max-width:100%; height:auto}
+.etq b{display:block; font-size:13px; line-height:1.25; margin-bottom:2px}
+.etq .cod{font-family:monospace; font-size:13px; color:var(--vino); font-weight:700}
+.etq small{display:block; color:var(--suave); font-size:11.5px; margin-top:2px}
+.filtros{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+.filtro{padding:8px 16px; border-radius:20px; border:1px solid var(--borde); background:#fff; color:var(--texto); text-decoration:none; font-size:14px}
+.filtro:hover{background:#f4ebe6; color:var(--texto)}
+.filtro.activo{background:var(--vino); border-color:var(--vino); color:#fff}
+
+@media print{
+  .menu, .barra, .nav-inferior, .hoja-mas, .pie, .no-imprimir, .alert{display:none !important}
+  body{background:#fff}
+  .contenido{padding:0 !important}
+  .rejilla-etq{grid-template-columns:repeat(4, 1fr); gap:8px}
+  .etq{border:1px solid #bbb}
+}
+</style>
+{% endblock %}
+
+{% block contenido %}
+{{ productos|json_script:"datos-etiquetas" }}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 no-imprimir">
+  <div>
+    <a href="{% url 'productos' %}" class="small text-decoration-none" style="color:var(--vino)">&lt; Volver a productos</a>
+    <h2 class="m-0" style="font-size:34px">Etiquetas QR</h2>
+  </div>
+  <button type="button" class="btn btn-vino" onclick="window.print()"><i class="bi bi-printer"></i> Imprimir etiquetas</button>
+</div>
+
+{% if sin_codigo %}
+<div class="caja mb-3 no-imprimir d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <span><b>{{ sin_codigo }}</b> producto{{ sin_codigo|pluralize }} todavía no tiene{{ sin_codigo|pluralize:"n" }} código.</span>
+  <form method="post" action="{% url 'generar_codigos' %}" onsubmit="return confirm('Se generará un código interno (CS00001, CS00002...) para cada producto sin código. ¿Continuar?')">
+    {% csrf_token %}
+    <button class="btn btn-outline-secondary btn-sm" style="border-radius:20px"><i class="bi bi-magic"></i> Generar códigos</button>
+  </form>
+</div>
+{% endif %}
+
+<form method="get" class="no-imprimir">
+  <input type="hidden" name="ver" value="{{ ver }}">
+  <div class="input-group mb-2">
+    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+    <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Buscar producto..." autocomplete="off">
+    <button class="btn btn-vino" style="border-radius:0 10px 10px 0">Buscar</button>
+  </div>
+</form>
+<div class="filtros no-imprimir">
+  <a class="filtro {% if ver == 'todos' %}activo{% endif %}" href="{% url 'etiquetas' %}?ver=todos{% if q %}&q={{ q|urlencode }}{% endif %}">Con código</a>
+  <a class="filtro {% if ver == 'sin_codigo' %}activo{% endif %}" href="{% url 'etiquetas' %}?ver=sin_codigo{% if q %}&q={{ q|urlencode }}{% endif %}">Sin código</a>
+</div>
+
+{% if ver == 'sin_codigo' %}
+  {% if productos %}
+  <div class="caja p-0" style="overflow-x:auto">
+    <table class="table tabla tabla-cards">
+      <thead><tr><th>Producto</th><th>Ubicación</th></tr></thead>
+      <tbody>
+        {% for p in productos %}<tr><td class="fw-semibold celda-titulo">{{ p.nombre }}</td><td data-label="Ubicación">{{ p.ubicacion }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="caja text-center text-muted py-4">Todos los productos ya tienen código.</div>
+  {% endif %}
+{% else %}
+  {% if productos %}
+  <div class="rejilla-etq" id="rejilla"></div>
+  {% else %}
+  <div class="caja text-center text-muted py-4">No hay productos con código. Usa <b>Generar códigos</b> para crearlos.</div>
+  {% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if ver != 'sin_codigo' and productos %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script>
+var productos = JSON.parse(document.getElementById('datos-etiquetas').textContent);
+var rejilla = document.getElementById('rejilla');
+
+productos.forEach(function(p){
+  var etq = document.createElement('div');
+  etq.className = 'etq';
+
+  var qr = document.createElement('div');
+  qr.className = 'qr';
+  etq.appendChild(qr);
+
+  var barras = document.createElement('div');
+  barras.className = 'barras';
+  etq.appendChild(barras);
+
+  var nombre = document.createElement('b');
+  nombre.textContent = p.nombre;
+  etq.appendChild(nombre);
+
+  var cod = document.createElement('div');
+  cod.className = 'cod';
+  cod.textContent = p.codigo;
+  etq.appendChild(cod);
+
+  var ubic = document.createElement('small');
+  ubic.textContent = p.ubicacion;
+  etq.appendChild(ubic);
+
+  rejilla.appendChild(etq);
+  new QRCode(qr, {text: p.codigo, width: 112, height: 112, correctLevel: QRCode.CorrectLevel.M});
+  try {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    JsBarcode(svg, p.codigo, {format: 'CODE128', displayValue: false, height: 38, width: 1.6, margin: 0});
+    barras.appendChild(svg);
+  } catch (x) {}
+});
+</script>
+{% endif %}
+{% endblock %}
