@@ -1,0 +1,184 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Reconocer por foto - CampesinoStock{% endblock %}
+{% block encabezado %}Reconocer por foto{% endblock %}
+
+{% block extra_css %}
+<style>
+.reconocer{max-width:760px; margin:0 auto}
+.vista-previa{width:100%; max-height:300px; object-fit:contain; border-radius:14px; background:#1c1417}
+#video-web{width:100%; max-height:340px; border-radius:14px; background:#000; transform:scaleX(-1)}
+.res-card{border-radius:16px}
+.res-nombre{font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:26px; line-height:1.1}
+.ubic-grande{background:#f0e4e2; color:var(--vino); border-radius:12px; padding:10px 12px; font-weight:700; font-size:15.5px}
+.ubic-grande small{display:block; font-weight:400; color:#6b4a4d; font-size:12.5px; margin-top:2px}
+.dato-res{display:flex; justify-content:space-between; gap:12px; padding:5px 0; border-bottom:1px solid var(--borde); font-size:14px}
+.dato-res:last-child{border-bottom:0}
+.dato-res span:first-child{color:var(--suave)}
+.chip-k{display:inline-block; background:#f0e4e2; color:var(--vino); border-radius:20px; padding:3px 12px; font-size:12.5px; margin:2px 4px 2px 0}
+.cargando{text-align:center; padding:22px; color:var(--suave)}
+.cargando .spinner-border{color:var(--vino)}
+</style>
+{% endblock %}
+
+{% block contenido %}
+<div id="cfg" hidden
+     data-csrf="{{ csrf_token }}"
+     data-api="{% url 'api_reconocer' %}"
+     data-venta="{% url 'venta_nueva' %}"
+     data-productos="{% url 'productos' %}"></div>
+
+<div class="reconocer">
+  <h2 class="mb-1" style="font-size:34px">Reconocer por foto</h2>
+  <p class="text-muted">Toma o elige una foto de una herramienta o material. La IA lo identifica y busca en tu inventario qué tienes, cuánto hay y dónde está.</p>
+
+  <div class="caja mb-3">
+    <img id="vista-previa" class="vista-previa mb-2" alt="Vista previa" hidden>
+    <video id="video-web" autoplay playsinline muted hidden></video>
+
+    <div class="d-flex flex-wrap gap-2">
+      <label class="btn btn-vino mb-0" for="foto-camara"><i class="bi bi-camera"></i> Tomar foto</label>
+      <input type="file" id="foto-camara" accept="image/*" capture="environment" hidden>
+      <label class="btn btn-outline-secondary mb-0" style="border-radius:30px" for="foto-archivo"><i class="bi bi-image"></i> Elegir de la galería</label>
+      <input type="file" id="foto-archivo" accept="image/*" hidden>
+      <button type="button" class="btn btn-outline-secondary" style="border-radius:30px" id="btn-web" hidden><i class="bi bi-webcam"></i> Usar cámara web</button>
+      <button type="button" class="btn btn-vino" id="btn-capturar" hidden><i class="bi bi-camera-fill"></i> Capturar</button>
+      <button type="button" class="btn btn-outline-secondary" style="border-radius:30px" id="btn-cancelar-web" hidden>Cancelar</button>
+    </div>
+    <small class="text-muted d-block mt-2">Toma la foto de cerca, con buena luz y con el objeto solo, sobre un fondo liso.</small>
+  </div>
+
+  <div id="resultado"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var CFG = document.getElementById('cfg').dataset;
+var resultado = document.getElementById('resultado');
+var vista = document.getElementById('vista-previa');
+var video = document.getElementById('video-web');
+var flujo = null;
+var ocupado = false;
+
+function esc(t){ var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+function dinero(n){ return '$' + Number(n).toFixed(2); }
+
+/* ---------- Reducir la foto antes de enviarla ---------- */
+function reducir(archivo, maximo){
+  return createImageBitmap(archivo).then(function(imagen){
+    var escala = Math.min(1, maximo / Math.max(imagen.width, imagen.height));
+    var lienzo = document.createElement('canvas');
+    lienzo.width = Math.round(imagen.width * escala);
+    lienzo.height = Math.round(imagen.height * escala);
+    lienzo.getContext('2d').drawImage(imagen, 0, 0, lienzo.width, lienzo.height);
+    return new Promise(function(resolver){
+      lienzo.toBlob(function(blob){ resolver(blob); }, 'image/jpeg', 0.88);
+    });
+  });
+}
+
+/* ---------- Enviar la foto y mostrar el resultado ---------- */
+function procesar(archivo){
+  if (!archivo || ocupado) return;
+  ocupado = true;
+  vista.src = URL.createObjectURL(archivo);
+  vista.hidden = false;
+  resultado.innerHTML = '<div class="caja cargando"><div class="spinner-border mb-2" role="status"></div><div>Analizando la foto...</div></div>';
+
+  reducir(archivo, 1280).then(function(blob){
+    var datos = new FormData();
+    datos.append('foto', blob, 'foto.jpg');
+    return fetch(CFG.api, {method: 'POST', headers: {'X-CSRFToken': CFG.csrf}, body: datos});
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.ok){
+      resultado.innerHTML = '<div class="alert alert-warning py-2">' + esc(d.mensaje || 'No se pudo analizar la foto.') + '</div>';
+      return;
+    }
+    mostrar(d.identificado, d.productos);
+  }).catch(function(){
+    resultado.innerHTML = '<div class="alert alert-warning py-2">No se pudo analizar la foto. Revisa tu conexión e inténtalo de nuevo.</div>';
+  }).then(function(){ ocupado = false; });
+}
+
+function mostrar(ia, productos){
+  var colores = {alta: 'success', media: 'warning text-dark', baja: 'secondary'};
+  var html = '<div class="caja res-card mb-3">' +
+    '<div class="d-flex justify-content-between align-items-start gap-2">' +
+      '<div><small class="text-muted">La IA cree que es</small><div class="res-nombre">' + esc(ia.nombre) + '</div></div>' +
+      '<span class="badge bg-' + (colores[ia.confianza] || 'secondary') + '">Confianza ' + esc(ia.confianza) + '</span></div>' +
+    (ia.descripcion ? '<div class="mt-1">' + esc(ia.descripcion) + '</div>' : '') +
+    '<div class="mt-2">' + ia.palabras_clave.map(function(k){ return '<span class="chip-k">' + esc(k) + '</span>'; }).join('') + '</div>' +
+    '<small class="text-muted d-block mt-2">La IA puede equivocarse. Confirma que sea el producto correcto.</small></div>';
+
+  if (!productos.length){
+    html += '<div class="caja"><b>No encontré un producto equivalente en el inventario.</b>' +
+      '<div class="text-muted small mt-1">Prueba con otra foto, o búscalo por nombre en <a href="' + CFG.productos + '" style="color:var(--vino)">Productos</a>.</div></div>';
+  } else {
+    html += '<div class="etiqueta" style="margin-top:6px">Coincidencias en el inventario</div>';
+    productos.forEach(function(p){
+      var estados = {agotado: ['danger', 'Agotado'], bajo: ['warning text-dark', 'Stock bajo'], ok: ['success', 'En stock']};
+      var e = estados[p.estado] || estados.ok;
+      html += '<div class="caja res-card mb-2">' +
+        '<div class="d-flex justify-content-between align-items-start gap-2 mb-2">' +
+          '<div><b style="font-size:16px">' + esc(p.nombre) + '</b><br><small class="text-muted">' + esc(p.categoria) + '</small></div>' +
+          '<span class="badge bg-' + e[0] + '">' + e[1] + '</span></div>' +
+        '<div class="ubic-grande mb-2"><i class="bi bi-geo-alt-fill"></i> ' + esc(p.ubicacion) +
+          (p.detalle_ubicacion ? '<small>Aquí se guarda: ' + esc(p.detalle_ubicacion) + '</small>' : '') + '</div>' +
+        '<div class="dato-res"><span>Stock</span><b>' + p.stock + '</b></div>' +
+        '<div class="dato-res"><span>Precio de venta</span><b>' + dinero(p.precio_venta) + '</b></div>' +
+        (p.precio_compra !== undefined ? '<div class="dato-res"><span>Precio de compra</span><b>' + dinero(p.precio_compra) + '</b></div>' : '') +
+        (p.stock > 0 ? '<a class="btn btn-vino btn-sm mt-2" href="' + CFG.venta + '?producto=' + p.id + '"><i class="bi bi-receipt"></i> Vender</a>' : '') +
+        '</div>';
+    });
+  }
+  resultado.innerHTML = html;
+  resultado.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+document.getElementById('foto-camara').addEventListener('change', function(e){ procesar(e.target.files[0]); e.target.value = ''; });
+document.getElementById('foto-archivo').addEventListener('change', function(e){ procesar(e.target.files[0]); e.target.value = ''; });
+
+/* ---------- Cámara web (computadora) ---------- */
+var esTactil = window.matchMedia('(pointer: coarse)').matches;
+var hayWeb = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && window.isSecureContext;
+var btnWeb = document.getElementById('btn-web');
+var btnCapturar = document.getElementById('btn-capturar');
+var btnCancelar = document.getElementById('btn-cancelar-web');
+if (hayWeb && !esTactil){ btnWeb.hidden = false; }
+
+function cerrarWeb(){
+  if (flujo){ flujo.getTracks().forEach(function(p){ p.stop(); }); flujo = null; }
+  video.srcObject = null;
+  video.hidden = true;
+  btnCapturar.hidden = true;
+  btnCancelar.hidden = true;
+  btnWeb.hidden = false;
+}
+
+btnWeb.addEventListener('click', function(){
+  navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}, audio: false}).then(function(stream){
+    flujo = stream;
+    video.srcObject = stream;
+    video.hidden = false;
+    vista.hidden = true;
+    btnWeb.hidden = true;
+    btnCapturar.hidden = false;
+    btnCancelar.hidden = false;
+  }).catch(function(){
+    alert('No se pudo abrir la cámara. Revisa el permiso del navegador o elige una foto de la galería.');
+  });
+});
+btnCancelar.addEventListener('click', cerrarWeb);
+btnCapturar.addEventListener('click', function(){
+  if (!video.videoWidth) return;
+  var lienzo = document.createElement('canvas');
+  lienzo.width = video.videoWidth;
+  lienzo.height = video.videoHeight;
+  lienzo.getContext('2d').drawImage(video, 0, 0);
+  lienzo.toBlob(function(blob){
+    cerrarWeb();
+    procesar(new File([blob], 'captura.jpg', {type: 'image/jpeg'}));
+  }, 'image/jpeg', 0.9);
+});
+</script>
+{% endblock %}

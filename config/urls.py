@@ -73,6 +73,8 @@ urlpatterns = [
     path('api/asignar-codigo/', views.api_asignar_codigo, name='api_asignar_codigo'),
     path('productos/etiquetas/', views.productos_etiquetas, name='etiquetas'),
     path('productos/etiquetas/generar/', views.generar_codigos, name='generar_codigos'),
+    path('reconocer/', views_ia.reconocer_pagina, name='reconocer'),
+    path('api/reconocer/', views_ia.api_reconocer, name='api_reconocer'),
 ]
 
 if settings.DEBUG:

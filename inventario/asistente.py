@@ -4,6 +4,7 @@ La IA NO entra a la base de datos por su cuenta: solo puede llamar a las
 funciones de este archivo, y cada una decide qué datos devolver según el rol
 de quien pregunta. Un Empleado nunca recibe precios de compra.
 """
+import json
 import logging
 import os
 import re
@@ -32,9 +33,9 @@ def modelos_a_usar():
     return lista or MODELOS_POR_DEFECTO
 
 
-def dentro_del_limite(empleado_id):
+def dentro_del_limite(empleado_id, tipo='chat'):
     """Evita abusos y protege el plan gratuito: máximo de preguntas por hora."""
-    clave = f'ia_limite_{empleado_id}'
+    clave = f'ia_limite_{tipo}_{empleado_id}'
     if cache.add(clave, 1, 3600):
         return True
     try:
@@ -236,3 +237,87 @@ def responder(empleado, historial, mensaje):
             logger.exception('Falló la consulta al modelo %s', modelo)
         time.sleep(0.5)
     return MENSAJE_OCUPADO
+
+
+# ---------------------------------------------------------------
+# RECONOCIMIENTO POR FOTO
+# ---------------------------------------------------------------
+PROMPT_FOTO = (
+    'Eres un experto en ferretería y materiales de construcción. Observa la imagen e identifica la '
+    'herramienta o el material principal. Responde SOLO con un objeto JSON con estas claves: '
+    '"nombre": nombre común en español (por ejemplo "martillo de uña" o "cable eléctrico"); '
+    '"tipo": una de herramienta manual, herramienta eléctrica, material eléctrico, plomería, pintura, '
+    'tornillería, construcción, seguridad u otro; '
+    '"palabras_clave": lista de 3 a 6 palabras sueltas en español y en singular que sirvan para buscarlo '
+    'en un catálogo (por ejemplo ["martillo", "uña"]); '
+    '"descripcion": una frase corta; '
+    '"confianza": "alta", "media" o "baja". '
+    'Si la imagen no muestra una herramienta o material de ferretería, usa nombre "no identificado" '
+    'y confianza "baja".'
+)
+
+
+def _leer_json(texto):
+    texto = (texto or '').strip()
+    if texto.startswith('```'):
+        texto = re.sub(r'^```(?:json)?|```$', '', texto, flags=re.M).strip()
+    try:
+        datos = json.loads(texto)
+    except ValueError:
+        encontrado = re.search(r'\{.*\}', texto, re.S)
+        if not encontrado:
+            return None
+        try:
+            datos = json.loads(encontrado.group(0))
+        except ValueError:
+            return None
+    if isinstance(datos, list) and datos:
+        datos = datos[0]
+    if not isinstance(datos, dict):
+        return None
+    palabras = datos.get('palabras_clave', [])
+    if isinstance(palabras, str):
+        palabras = [palabras]
+    palabras = [str(p).strip().lower()[:30] for p in palabras if str(p).strip()][:6]
+    confianza = str(datos.get('confianza', 'baja')).lower()
+    return {
+        'nombre': str(datos.get('nombre', 'no identificado')).strip()[:120] or 'no identificado',
+        'tipo': str(datos.get('tipo', 'otro')).strip()[:60],
+        'descripcion': str(datos.get('descripcion', '')).strip()[:250],
+        'confianza': confianza if confianza in ('alta', 'media', 'baja') else 'baja',
+        'palabras_clave': palabras,
+    }
+
+
+def reconocer_imagen(imagen_jpeg):
+    """Identifica la herramienta o material de una foto. Devuelve un diccionario o None."""
+    if not settings.GEMINI_API_KEY:
+        return None
+    try:
+        from google import genai
+        from google.genai import errors, types
+    except ImportError:
+        return None
+
+    opciones = {'timeout': 30 * 1000}
+    if hasattr(types, 'HttpRetryOptions'):
+        opciones['retry_options'] = types.HttpRetryOptions(attempts=1)
+    config = types.GenerateContentConfig(response_mime_type='application/json', temperature=0.2)
+    contenido = [types.Part.from_bytes(data=imagen_jpeg, mime_type='image/jpeg'), PROMPT_FOTO]
+
+    for modelo in modelos_a_usar():
+        try:
+            cliente = genai.Client(api_key=settings.GEMINI_API_KEY,
+                                   http_options=types.HttpOptions(**opciones))
+            respuesta = cliente.models.generate_content(
+                model=modelo, contents=contenido, config=config)
+            datos = _leer_json(respuesta.text)
+            if datos:
+                return datos
+            logger.warning('El modelo %s no devolvió un JSON válido.', modelo)
+        except errors.APIError as error:
+            logger.warning('Gemini %s (foto): error %s', modelo, getattr(error, 'code', '?'))
+        except Exception:
+            logger.exception('Falló el reconocimiento con el modelo %s', modelo)
+        time.sleep(0.5)
+    return None
