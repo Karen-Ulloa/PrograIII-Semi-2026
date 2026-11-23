@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
     'inventario',
 ]
 
@@ -154,3 +155,4 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-flash-latest')
+

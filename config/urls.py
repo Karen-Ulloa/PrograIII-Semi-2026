@@ -20,6 +20,7 @@ from django.urls import path
 from inventario import views, views_ia
 from django.conf import settings
 from django.conf.urls.static import static
+from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -75,6 +76,7 @@ urlpatterns = [
     path('productos/etiquetas/generar/', views.generar_codigos, name='generar_codigos'),
     path('reconocer/', views_ia.reconocer_pagina, name='reconocer'),
     path('api/reconocer/', views_ia.api_reconocer, name='api_reconocer'),
+    path('api/v1/', include('inventario.api_urls')),
 ]
 
 if settings.DEBUG:
