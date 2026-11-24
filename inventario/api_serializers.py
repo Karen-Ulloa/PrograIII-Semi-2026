@@ -23,6 +23,9 @@ def _rol(serializer):
     return getattr(getattr(request, 'user', None), 'rol', None)
 
 
+# ---------------------------------------------------------------
+# PRODUCTOS
+# ---------------------------------------------------------------
 class ProductoSerializer(serializers.ModelSerializer):
     id_categoria = serializers.PrimaryKeyRelatedField(queryset=Categorias.objects.all())
     id_ubicacion = serializers.PrimaryKeyRelatedField(
@@ -81,6 +84,9 @@ class ProductoSerializer(serializers.ModelSerializer):
         return datos
 
 
+# ---------------------------------------------------------------
+# CLIENTES
+# ---------------------------------------------------------------
 class ClienteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Clientes
@@ -105,6 +111,9 @@ class ClienteSerializer(serializers.ModelSerializer):
         return telefono
 
 
+# ---------------------------------------------------------------
+# PROVEEDORES
+# ---------------------------------------------------------------
 class ProveedorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Proveedores
@@ -123,6 +132,9 @@ class ProveedorSerializer(serializers.ModelSerializer):
         return valor.strip()
 
 
+# ---------------------------------------------------------------
+# VENTAS
+# ---------------------------------------------------------------
 class DetalleVentaSerializer(serializers.ModelSerializer):
     producto = serializers.CharField(source='id_producto.nombre_producto', read_only=True)
     subtotal = serializers.SerializerMethodField()
@@ -146,7 +158,8 @@ class VentaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ventas
         fields = ['id_venta', 'fecha_venta', 'id_cliente', 'cliente', 'id_empleado',
-                  'empleado', 'id_metodo_pago', 'metodo_pago', 'total', 'detalles']
+                  'empleado', 'id_metodo_pago', 'metodo_pago', 'total', 'anulada',
+                  'fecha_anulacion', 'motivo_anulacion', 'detalles']
 
     def get_cliente(self, v):
         return v.id_cliente.nombre if v.id_cliente else None
@@ -223,6 +236,9 @@ class VentaCrearSerializer(serializers.Serializer):
         return venta
 
 
+# ---------------------------------------------------------------
+# MERMAS
+# ---------------------------------------------------------------
 class MermaSerializer(serializers.ModelSerializer):
     """Lectura y registro de una merma (un producto y un motivo por registro)."""
     producto = serializers.SerializerMethodField()
@@ -266,6 +282,9 @@ class MermaSerializer(serializers.ModelSerializer):
         return merma
 
 
+# ---------------------------------------------------------------
+# ÓRDENES DE COMPRA
+# ---------------------------------------------------------------
 class DetalleCompraSerializer(serializers.ModelSerializer):
     producto = serializers.CharField(source='id_producto.nombre_producto', read_only=True)
     subtotal = serializers.SerializerMethodField()

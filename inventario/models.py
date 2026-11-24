@@ -115,6 +115,11 @@ class Ventas(models.Model):
     id_empleado = models.ForeignKey(Empleados, on_delete=models.SET_NULL, null=True, db_column='id_empleado')
     id_metodo_pago = models.ForeignKey(MetodosPago, on_delete=models.SET_NULL, null=True, db_column='id_metodo_pago')
     fecha_venta = models.DateTimeField()
+    anulada = models.BooleanField(default=False)
+    fecha_anulacion = models.DateTimeField(null=True, blank=True)
+    id_empleado_anula = models.ForeignKey(Empleados, on_delete=models.SET_NULL, null=True, blank=True,
+                                          db_column='id_empleado_anula', related_name='ventas_anuladas')
+    motivo_anulacion = models.CharField(max_length=200, blank=True, default='')
     class Meta:
         db_table = 'ventas'
 

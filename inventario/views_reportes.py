@@ -13,7 +13,7 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
-from .models import DetalleVenta, Productos, RegistrosMerma
+from .models import DetalleVenta, Productos, RegistrosMerma, Ventas
 from .reportes_util import XLSX, construir_excel, vista_resumen, vista_seccion
 from .views import contexto, solo_admin
 
@@ -39,12 +39,10 @@ def _total_lineas():
 
 
 def _detalles_vendidos(inicio, fin):
-    """
-    Líneas de venta del período. Cuando exista la anulación de ventas (Punto 5),
-    aquí se excluirán las ventas anuladas y todos los reportes se corrigen a la vez.
-    """
+    """Líneas de venta del período, sin contar las ventas anuladas (todos los reportes pasan por aquí)."""
     return DetalleVenta.objects.filter(id_venta__fecha_venta__gte=inicio,
-                                       id_venta__fecha_venta__lt=fin)
+                                       id_venta__fecha_venta__lt=fin,
+                                       id_venta__anulada=False)
 
 
 def _fecha_param(texto):
@@ -113,13 +111,15 @@ def _reporte_ventas(desde, hasta, inicio, fin):
     }
 
     promedio = (total / len(ventas)).quantize(Decimal('0.01')) if ventas else CERO
+    anuladas = Ventas.objects.filter(fecha_venta__gte=inicio, fecha_venta__lt=fin, anulada=True).count()
     return {
         'titulo': 'Ventas por día',
         'subtitulo': f'Del {_fecha(desde)} al {_fecha(hasta)}',
         'resumen': [('Total vendido', total, 'dinero'), ('Ventas realizadas', len(ventas), 'num'),
                     ('Unidades vendidas', unidades, 'num'), ('Venta promedio', promedio, 'dinero')],
         'secciones': [por_dia, por_metodo],
-        'nota': None,
+        'nota': (f'Hay {anuladas} venta(s) anulada(s) en este período; no se cuentan en estos totales.'
+                 if anuladas else None),
     }
 
 

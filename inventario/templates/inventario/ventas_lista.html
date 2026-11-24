@@ -12,6 +12,7 @@
 .filtro{padding:8px 16px; border-radius:20px; border:1px solid var(--borde); background:#fff; color:var(--texto); text-decoration:none; font-size:14px}
 .filtro:hover{background:#f4ebe6; color:var(--texto)}
 .filtro.activo{background:var(--vino); border-color:var(--vino); color:#fff}
+.tachado{text-decoration:line-through; opacity:.55}
 @media (max-width:575.98px){ .dato-venta .num{font-size:28px} }
 </style>
 {% endblock %}
@@ -23,9 +24,12 @@
 </div>
 
 <div class="resumen-ventas">
-  <div class="dato-venta"><small>Ventas</small><span class="num" style="color:#1e40af">{{ ventas|length }}</span></div>
+  <div class="dato-venta"><small>Ventas</small><span class="num" style="color:#1e40af">{{ n_validas }}</span></div>
   <div class="dato-venta"><small>Total vendido</small><span class="num" style="color:var(--vino)">${{ suma|floatformat:2 }}</span></div>
 </div>
+{% if ventas|length != n_validas %}
+<small class="text-muted d-block mb-2">Las ventas anuladas no se cuentan en estos totales.</small>
+{% endif %}
 
 <div class="filtros">
   <a class="filtro {% if periodo == 'hoy' %}activo{% endif %}" href="{% url 'ventas' %}?periodo=hoy">Hoy</a>
@@ -47,12 +51,12 @@
     </thead>
     <tbody>
       {% for v in ventas %}
-      <tr>
-        <td class="fw-semibold celda-titulo">Venta #{{ v.id_venta }}</td>
+      <tr {% if v.anulada %}style="background:#fdf3f2"{% endif %}>
+        <td class="fw-semibold celda-titulo">Venta #{{ v.id_venta }}{% if v.anulada %} <span class="badge bg-danger ms-1">Anulada</span>{% endif %}</td>
         <td data-label="Fecha">{{ v.fecha_venta|date:"d/m/Y H:i" }}</td>
         {% if es_admin %}<td data-label="Vendedor">{% if v.id_empleado %}{{ v.id_empleado.nombre }}{% else %}—{% endif %}</td>{% endif %}
         <td data-label="Pago">{% if v.id_metodo_pago %}{{ v.id_metodo_pago.nombre_metodo }}{% else %}—{% endif %}</td>
-        <td class="text-end fw-bold" data-label="Total">${{ v.total|default_if_none:0|floatformat:2 }}</td>
+        <td class="text-end fw-bold {% if v.anulada %}tachado{% endif %}" data-label="Total">${{ v.total|default_if_none:0|floatformat:2 }}</td>
         <td class="text-end celda-acciones"><a href="{% url 'venta_detalle' v.id_venta %}" class="btn btn-sm btn-outline-secondary" title="Ver comprobante"><i class="bi bi-receipt"></i></a></td>
       </tr>
       {% empty %}

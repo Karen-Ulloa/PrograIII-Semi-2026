@@ -12,12 +12,17 @@
 .dato-v span:last-child{text-align:right; font-weight:500}
 .total-final{display:flex; justify-content:space-between; align-items:baseline; border-top:2px solid var(--borde); margin-top:8px; padding-top:10px}
 .total-final b{font-family:'Barlow Condensed',sans-serif; font-size:40px; color:var(--vino); line-height:1}
+.total-final b.tachado{text-decoration:line-through; opacity:.5}
+.anulada-aviso{background:#fdecea; border:1px solid #f3b8b3; color:#8a1c14; border-radius:12px; padding:10px 14px; margin-bottom:12px; font-size:14px}
+.anulada-aviso b{display:block; font-size:17px; letter-spacing:.5px}
+.anular-box summary{cursor:pointer; color:#b42318; font-weight:700}
 
 @media print{
   .menu, .barra, .nav-inferior, .hoja-mas, .pie, .no-imprimir, .alert{display:none !important}
   body{background:#fff}
   .contenido{padding:0 !important}
   .comprobante .caja{border:0; box-shadow:none}
+  .anulada-aviso{-webkit-print-color-adjust:exact; print-color-adjust:exact}
 }
 </style>
 {% endblock %}
@@ -37,6 +42,14 @@
       <h3>Agroferretería El Campesino</h3>
       <small class="text-muted">Comprobante de venta #{{ venta.id_venta }}</small>
     </div>
+
+    {% if venta.anulada %}
+    <div class="anulada-aviso">
+      <b>VENTA ANULADA</b>
+      Anulada el {{ venta.fecha_anulacion|date:"d/m/Y H:i" }}{% if venta.id_empleado_anula %} por {{ venta.id_empleado_anula.nombre }}{% endif %}.<br>
+      Motivo: {{ venta.motivo_anulacion|default:"—" }}
+    </div>
+    {% endif %}
 
     <div class="dato-v"><span>Fecha</span><span>{{ venta.fecha_venta|date:"d/m/Y H:i" }}</span></div>
     <div class="dato-v"><span>Atendió</span><span>{% if venta.id_empleado %}{{ venta.id_empleado.nombre }} {{ venta.id_empleado.apellido }}{% else %}—{% endif %}</span></div>
@@ -63,7 +76,25 @@
       </table>
     </div>
 
-    <div class="total-final"><span>Total</span><b>${{ total|floatformat:2 }}</b></div>
+    <div class="total-final"><span>Total</span><b class="{% if venta.anulada %}tachado{% endif %}">${{ total|floatformat:2 }}</b></div>
   </div>
+
+  {% if not venta.anulada %}
+  <details class="caja mt-3 no-imprimir anular-box">
+    <summary><i class="bi bi-x-octagon"></i> Anular esta venta</summary>
+    <form method="post" action="{% url 'venta_anular' venta.id_venta %}" class="mt-3"
+          onsubmit="return confirm('¿Anular la venta #{{ venta.id_venta }}? Las cantidades volverán al stock. Esta acción no se puede deshacer.')">
+      {% csrf_token %}
+      <p class="small text-muted mb-2">La venta no se borra: queda marcada como anulada y las cantidades vuelven al stock de cada producto.</p>
+      <label class="small fw-bold" for="motivo">Motivo de la anulación</label>
+      <input type="text" name="motivo" id="motivo" class="form-control mb-3" maxlength="200" minlength="3" required
+             placeholder="Ej: error en la cantidad, el cliente devolvió el producto" autocomplete="off">
+      <label class="small fw-bold" for="codigo">Código de autorización</label>
+      <input type="password" name="codigo" id="codigo" class="form-control" required autocomplete="off">
+      <div class="form-text mb-3">Pídeselo al Administrador. Sin el código no se puede anular.</div>
+      <button class="btn btn-danger" style="border-radius:30px">Confirmar anulación</button>
+    </form>
+  </details>
+  {% endif %}
 </div>
 {% endblock %}

@@ -6,6 +6,7 @@ Permisos por rol (mismos que la web):
   Clientes    : solo Admin
   Proveedores : ver/crear/editar = Admin y Encargado | eliminar = Admin
   Ventas      : ver y registrar = todos (Empleado y Encargado solo ven las suyas; Admin ve todas)
+                anular = cada quien las suyas (Admin cualquiera), siempre con el código de autorización
   Mermas      : ver y registrar = todos | anular (DELETE) = Admin
   Órdenes     : Admin y Encargado (crear, ver, recibir, cancelar)
 """
@@ -26,6 +27,10 @@ from rest_framework.views import APIView
 
 from .api_auth import (
     ADMIN, GESTORES, SOLO_ADMIN, TODOS, EmpleadoSessionAuthentication, PorRol,
+)
+from .anulaciones import (
+    AnulacionInvalida, CodigoBloqueado, CodigoIncorrecto, SinPermisoAnular, VentaNoExiste,
+    VentaYaAnulada, anular_venta,
 )
 from .api_serializers import (
     ClienteSerializer, MermaSerializer, OrdenCrearSerializer, OrdenSerializer,
@@ -66,6 +71,9 @@ def _conflicto(mensaje):
     return Response({'detail': mensaje}, status=409)
 
 
+# ---------------------------------------------------------------
+# CATÁLOGOS (ids necesarios para crear ventas, mermas, productos...)
+# ---------------------------------------------------------------
 class CatalogosView(ApiBase, APIView):
     roles_default = TODOS
 
@@ -80,6 +88,9 @@ class CatalogosView(ApiBase, APIView):
         })
 
 
+# ---------------------------------------------------------------
+# PRODUCTOS
+# ---------------------------------------------------------------
 class ProductoViewSet(ApiBase, viewsets.ModelViewSet):
     """Filtros: ?q=texto  ?categoria=ID  ?alerta=1 (stock en o bajo el mínimo)"""
     serializer_class = ProductoSerializer
@@ -113,6 +124,9 @@ class ProductoViewSet(ApiBase, viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 
+# ---------------------------------------------------------------
+# CLIENTES (solo administrador)
+# ---------------------------------------------------------------
 class ClienteViewSet(ApiBase, viewsets.ModelViewSet):
     """Filtro: ?q=texto"""
     serializer_class = ClienteSerializer
@@ -131,6 +145,9 @@ class ClienteViewSet(ApiBase, viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 
+# ---------------------------------------------------------------
+# PROVEEDORES
+# ---------------------------------------------------------------
 class ProveedorViewSet(ApiBase, viewsets.ModelViewSet):
     """Filtro: ?q=texto"""
     serializer_class = ProveedorSerializer
@@ -155,11 +172,14 @@ class ProveedorViewSet(ApiBase, viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 
+# ---------------------------------------------------------------
+# VENTAS (listar, ver y registrar; anular se hará en la tarea 5)
+# ---------------------------------------------------------------
 class VentaViewSet(ApiBase, mixins.ListModelMixin, mixins.RetrieveModelMixin,
                    viewsets.GenericViewSet):
     """Filtro: ?periodo=hoy|semana|todas"""
     serializer_class = VentaSerializer
-    roles_por_accion = {'list': TODOS, 'retrieve': TODOS, 'create': TODOS}
+    roles_por_accion = {'list': TODOS, 'retrieve': TODOS, 'create': TODOS, 'anular': TODOS}
 
     def get_queryset(self):
         qs = (Ventas.objects
@@ -178,7 +198,29 @@ class VentaViewSet(ApiBase, mixins.ListModelMixin, mixins.RetrieveModelMixin,
         venta = self.get_queryset().get(pk=venta.pk)
         return Response(VentaSerializer(venta, context=self.get_serializer_context()).data, status=201)
 
+    @action(detail=True, methods=['post'])
+    def anular(self, request, pk=None):
+        """Anula la venta y devuelve las cantidades al stock. Cuerpo JSON: motivo y codigo."""
+        try:
+            anular_venta(pk, request.user.empleado, request.data.get('motivo', ''),
+                         request.data.get('codigo', ''))
+        except VentaNoExiste:
+            raise NotFound('Esa venta no existe.')
+        except VentaYaAnulada as problema:
+            return _conflicto(str(problema))
+        except CodigoBloqueado as problema:
+            return Response({'detail': str(problema)}, status=429)
+        except (CodigoIncorrecto, SinPermisoAnular) as problema:
+            return Response({'detail': str(problema)}, status=403)
+        except AnulacionInvalida as problema:
+            return Response({'detail': str(problema)}, status=400)
+        venta = self.get_queryset().get(pk=pk)
+        return Response(VentaSerializer(venta, context=self.get_serializer_context()).data)
 
+
+# ---------------------------------------------------------------
+# MERMAS (anular = DELETE, devuelve el stock)
+# ---------------------------------------------------------------
 class MermaViewSet(ApiBase, mixins.ListModelMixin, mixins.RetrieveModelMixin,
                    mixins.CreateModelMixin, viewsets.GenericViewSet):
     """Filtro: ?periodo=hoy|semana|todas"""
@@ -201,6 +243,9 @@ class MermaViewSet(ApiBase, mixins.ListModelMixin, mixins.RetrieveModelMixin,
         return Response(status=204)
 
 
+# ---------------------------------------------------------------
+# ÓRDENES DE COMPRA (Admin y Encargado)
+# ---------------------------------------------------------------
 class OrdenCompraViewSet(ApiBase, mixins.ListModelMixin, mixins.RetrieveModelMixin,
                          viewsets.GenericViewSet):
     """Filtro: ?estado=Pendiente|Recibida|Cancelada.  Acciones: POST .../recibir/ y .../cancelar/"""
@@ -258,7 +303,9 @@ class OrdenCompraViewSet(ApiBase, mixins.ListModelMixin, mixins.RetrieveModelMix
         return self._responder(orden.pk)
 
 
-
+# ---------------------------------------------------------------
+# PÁGINA WEB DE PRUEBA DE ENDPOINTS (cualquier rol con sesión iniciada)
+# ---------------------------------------------------------------
 @ensure_csrf_cookie
 @login_requerido
 def api_prueba(request):

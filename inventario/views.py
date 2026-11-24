@@ -39,9 +39,7 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------
-# UTILIDADES
-# ---------------------------------------------------------------
+
 def validar_password(p):
     faltan = []
     if len(p) < 8:
@@ -81,9 +79,7 @@ def _buscar_empleado_por_telefono(telefono):
     return Empleados.objects.filter(telefono__in=opciones).first()
 
 
-# ---------------------------------------------------------------
-# PERMISOS Y CONFIGURACIÓN
-# ---------------------------------------------------------------
+
 def login_requerido(vista):
     """Exige sesión iniciada. Deja al empleado en request.empleado."""
     @wraps(vista)
@@ -153,9 +149,7 @@ def contexto(request, activo='', **extra):
     return datos
 
 
-# ---------------------------------------------------------------
-# PÁGINAS PÚBLICAS, REGISTRO Y LOGIN
-# ---------------------------------------------------------------
+
 def inicio(request):
     # Quien ya inició sesión va al dashboard; en un teléfono se abre directo el inicio de sesión.
     if request.session.get('empleado_id'):
@@ -328,9 +322,7 @@ def logout_view(request):
     return redirect('login')
 
 
-# ---------------------------------------------------------------
-# RECUPERAR CONTRASEÑA
-# ---------------------------------------------------------------
+
 def recuperar(request):
     if request.method == 'POST':
         tipo = request.POST.get('tipo')
@@ -484,14 +476,14 @@ def restablecer(request):
     return render(request, 'inventario/restablecer.html')
 
 
-# ---------------------------------------------------------------
-# DASHBOARD
-# ---------------------------------------------------------------
+
 @login_requerido
 def dashboard(request):
     hoy = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
-    ventas_hoy = Ventas.objects.filter(fecha_venta__gte=hoy)
-    total_hoy = DetalleVenta.objects.filter(id_venta__fecha_venta__gte=hoy).aggregate(
+    ventas_hoy = Ventas.objects.filter(fecha_venta__gte=hoy, anulada=False)
+    total_hoy = DetalleVenta.objects.filter(
+        id_venta__fecha_venta__gte=hoy, id_venta__anulada=False
+    ).aggregate(
         total=Sum(F('cantidad') * F('precio_venta'), output_field=DecimalField())
     )['total'] or 0
 
@@ -501,13 +493,11 @@ def dashboard(request):
         ventas_hoy=ventas_hoy.count(),
         total_hoy=total_hoy,
         total_ordenes=OrdenesCompra.objects.filter(estado='Pendiente').count(),
-        actividad=Ventas.objects.order_by('-fecha_venta')[:5],
+        actividad=Ventas.objects.filter(anulada=False).order_by('-fecha_venta')[:5],
     ))
 
 
-# ---------------------------------------------------------------
-# ALERTAS DE STOCK (todos los roles)
-# ---------------------------------------------------------------
+
 @login_requerido
 def alertas_lista(request):
     tipo = request.GET.get('tipo', 'todas')
@@ -540,9 +530,7 @@ def alertas_lista(request):
         total_costo=total_costo if es_gestor else None))
 
 
-# ---------------------------------------------------------------
-# PRODUCTOS
-# ---------------------------------------------------------------
+
 class ProductoForm(forms.ModelForm):
     class Meta:
         model = Productos
@@ -1036,9 +1024,7 @@ def perfil(request):
         acceso_anterior=acceso_anterior))
 
 
-# ---------------------------------------------------------------
-# PROVEEDORES (administrador y encargado; solo el administrador elimina)
-# ---------------------------------------------------------------
+
 class ProveedorForm(forms.ModelForm):
     class Meta:
         model = Proveedores
@@ -1105,9 +1091,7 @@ def proveedor_eliminar(request, pk):
     return redirect('proveedores')
 
 
-# ---------------------------------------------------------------
-# CLIENTES (solo administrador)
-# ---------------------------------------------------------------
+
 class ClienteForm(forms.ModelForm):
     class Meta:
         model = Clientes
@@ -1176,9 +1160,7 @@ def cliente_eliminar(request, pk):
     return redirect('clientes')
 
 
-# ---------------------------------------------------------------
-# VENTAS (todos los roles; cada persona ve las suyas, el administrador ve todas)
-# ---------------------------------------------------------------
+
 METODOS_PAGO_BASE = ['Efectivo', 'Tarjeta', 'Transferencia']
 
 
@@ -1326,15 +1308,14 @@ def ventas_lista(request):
         F('detalleventa__cantidad') * F('detalleventa__precio_venta'),
         output_field=DecimalField())).order_by('-fecha_venta')
     filas = list(consulta[:100])
-    suma = sum((v.total or 0) for v in filas)
+    suma = sum((v.total or 0) for v in filas if not v.anulada)
+    n_validas = sum(1 for v in filas if not v.anulada)
 
     return render(request, 'inventario/ventas_lista.html', contexto(
-        request, 'ventas', ventas=filas, periodo=periodo, suma=suma))
+            request, 'ventas', ventas=filas, periodo=periodo, suma=suma, n_validas=n_validas))
 
 
-# ---------------------------------------------------------------
-# MERMAS (todos pueden registrar; solo el administrador puede anular)
-# ---------------------------------------------------------------
+
 MOTIVOS_MERMA_BASE = ['Producto dañado', 'Vencido', 'Defecto de fábrica',
                       'Pérdida o robo', 'Error de manejo']
 
@@ -1474,9 +1455,7 @@ def merma_anular(request, pk):
     return redirect('mermas')
 
 
-# ---------------------------------------------------------------
-# ÓRDENES DE COMPRA (administrador y encargado)
-# ---------------------------------------------------------------
+
 def _leer_orden(texto):
     """Convierte la lista del navegador en {id_producto: (cantidad, precio)}."""
     try:
@@ -1619,9 +1598,7 @@ def orden_cancelar(request, pk):
     return redirect('ordenes')
 
 
-# ---------------------------------------------------------------
-# ESCÁNER DE CÓDIGOS Y ETIQUETAS QR
-# ---------------------------------------------------------------
+
 CODIGO_VALIDO = re.compile(r'[A-Za-z0-9._\-]{3,50}')
 
 
