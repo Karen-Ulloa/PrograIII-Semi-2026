@@ -2,8 +2,8 @@
 -- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
--- Servidor: 127.0.0.1
--- Tiempo de generación: 02-11-2026 a las 14:46:36
+-- Servidor: 127.0.0.1:3306
+-- Tiempo de generación: 24-11-2026 a las 12:56:02
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -20,8 +20,6 @@ SET time_zone = "+00:00";
 --
 -- Base de datos: `db_campesinostock`
 --
-CREATE DATABASE IF NOT EXISTS `db_campesinostock` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `db_campesinostock`;
 
 -- --------------------------------------------------------
 
@@ -362,7 +360,9 @@ INSERT INTO `django_migrations` (`id`, `app`, `name`, `applied`) VALUES
 (16, 'auth', '0011_update_proxy_permissions', '2026-11-02 13:07:09.702632'),
 (17, 'auth', '0012_alter_user_first_name_max_length', '2026-11-02 13:07:09.768462'),
 (18, 'inventario', '0001_initial', '2026-11-02 13:07:13.618070'),
-(19, 'sessions', '0001_initial', '2026-11-02 13:07:13.705255');
+(19, 'sessions', '0001_initial', '2026-11-02 13:07:13.705255'),
+(20, 'inventario', '0002_ordenescompra_estado_ordenescompra_fecha_recepcion', '2026-11-13 20:04:25.263177'),
+(21, 'inventario', '0003_productos_codigo_barras_ubicaciones_bodega_and_more', '2026-11-14 20:07:22.033327');
 
 -- --------------------------------------------------------
 
@@ -411,6 +411,15 @@ CREATE TABLE `metodos_pago` (
   `nombre_metodo` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Volcado de datos para la tabla `metodos_pago`
+--
+
+INSERT INTO `metodos_pago` (`id_metodo_pago`, `nombre_metodo`) VALUES
+(1, 'Efectivo'),
+(2, 'Tarjeta'),
+(3, 'Transferencia');
+
 -- --------------------------------------------------------
 
 --
@@ -422,6 +431,17 @@ CREATE TABLE `motivos_merma` (
   `descripcion` varchar(100) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Volcado de datos para la tabla `motivos_merma`
+--
+
+INSERT INTO `motivos_merma` (`id_motivo`, `descripcion`) VALUES
+(1, 'Producto dañado'),
+(2, 'Vencido'),
+(3, 'Defecto de fábrica'),
+(4, 'Pérdida o robo'),
+(5, 'Error de manejo');
+
 -- --------------------------------------------------------
 
 --
@@ -431,7 +451,9 @@ CREATE TABLE `motivos_merma` (
 CREATE TABLE `ordenes_compra` (
   `id_compra` int(11) NOT NULL,
   `fecha_compra` datetime(6) NOT NULL,
-  `id_proveedor` int(11) NOT NULL
+  `id_proveedor` int(11) NOT NULL,
+  `estado` varchar(15) NOT NULL,
+  `fecha_recepcion` datetime(6) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -449,89 +471,90 @@ CREATE TABLE `productos` (
   `stock` int(11) NOT NULL,
   `stock_minimo` int(11) NOT NULL,
   `id_categoria` int(11) DEFAULT NULL,
-  `id_ubicacion` int(11) DEFAULT NULL
+  `id_ubicacion` int(11) DEFAULT NULL,
+  `codigo_barras` varchar(50) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Volcado de datos para la tabla `productos`
 --
 
-INSERT INTO `productos` (`id_producto`, `nombre_producto`, `precio_producto`, `imagen`, `precio_compra`, `stock`, `stock_minimo`, `id_categoria`, `id_ubicacion`) VALUES
-(1, 'Tornillo para madera 1/4\" x 2\"', 0.10, NULL, 0.04, 0, 5, 1, NULL),
-(2, 'Tornillo para madera 1/4\" x 3\"', 0.12, NULL, 0.06, 0, 5, 1, NULL),
-(3, 'Tornillo goloso 10 x 1\"', 0.08, NULL, 0.03, 0, 5, 1, NULL),
-(4, 'Tornillo de fijación para lámina 14 x 1\"', 0.10, NULL, 0.05, 0, 5, 1, NULL),
-(5, 'Tornillo para drywall 6 x 1\"', 0.05, NULL, 0.02, 0, 5, 1, NULL),
-(6, 'Perno hexagonal grado 2 3/8\" x 2\"', 0.35, NULL, 0.15, 0, 5, 1, NULL),
-(7, 'Tuerca hexagonal 1/4\"', 0.05, NULL, 0.02, 0, 5, 1, NULL),
-(8, 'Tuerca hexagonal 3/8\"', 0.10, NULL, 0.04, 0, 5, 1, NULL),
-(9, 'Arandela plana 1/4\"', 0.10, NULL, 0.02, 0, 5, 1, NULL),
-(10, 'Arandela de presión 3/8\"', 0.13, NULL, 0.05, 0, 5, 1, NULL),
-(11, 'Clavo con cabeza para madera 2\" (libra)', 1.25, NULL, 0.75, 0, 5, 1, NULL),
-(12, 'Clavo con cabeza para madera 3\" (libra)', 1.25, NULL, 0.75, 0, 5, 1, NULL),
-(13, 'Clavo para concreto 2\" (libra)', 1.75, NULL, 1.10, 0, 5, 1, NULL),
-(14, 'Clavo para concreto 3\" (libra)', 1.75, NULL, 1.10, 0, 5, 1, NULL),
-(15, 'Taquete / Tarugo plástico 1/4\"', 0.05, NULL, 0.02, 0, 5, 1, NULL),
-(16, 'Taquete / Tarugo plástico 3/8\"', 0.10, NULL, 0.04, 0, 5, 1, NULL),
-(17, 'Lija para agua N° 80', 0.75, NULL, 0.35, 0, 5, 2, NULL),
-(18, 'Lija para agua N° 120', 0.75, NULL, 0.35, 0, 5, 2, NULL),
-(19, 'Lija para agua N° 220', 0.75, NULL, 0.35, 0, 5, 2, NULL),
-(20, 'Lija para agua N° 400', 0.80, NULL, 0.40, 0, 5, 2, NULL),
-(21, 'Lija para madera N° 60', 1.00, NULL, 0.30, 0, 5, 2, NULL),
-(22, 'Lija para madera N° 100', 0.60, NULL, 0.30, 0, 5, 2, NULL),
-(23, 'Pintura de aceite Rojo Óxido (Galón)', 18.00, NULL, 12.50, 0, 5, 3, NULL),
-(24, 'Pintura de aceite Blanco Hueso (Galón)', 19.50, NULL, 13.00, 0, 5, 3, NULL),
-(25, 'Pintura de aceite Negro Mate (Galón)', 18.00, NULL, 12.50, 0, 5, 3, NULL),
-(26, 'Pintura látex Blanco (Galón)', 14.50, NULL, 9.50, 0, 5, 3, NULL),
-(27, 'Pintura látex Azul Colonial (Galón)', 15.50, NULL, 10.00, 0, 5, 3, NULL),
-(28, 'Pintura látex Verde Bosque (Galón)', 15.50, NULL, 10.00, 0, 5, 3, NULL),
-(29, 'Anti-corrosivo Gris (Galón)', 16.50, NULL, 11.00, 0, 5, 3, NULL),
-(30, 'Thinner corriente (Galón)', 8.50, NULL, 5.50, 0, 5, 3, NULL),
-(31, 'Solvente Mineral / Aguarrás (Galón)', 9.00, NULL, 6.00, 0, 5, 3, NULL),
-(32, 'Brocha para pintura 1\"', 1.00, NULL, 0.45, 0, 5, 3, NULL),
-(33, 'Brocha para pintura 2\"', 1.75, NULL, 0.85, 0, 5, 3, NULL),
-(34, 'Brocha para pintura 3\"', 2.50, NULL, 1.25, 0, 5, 3, NULL),
-(35, 'Rodillo para pintura felpa 9\"', 3.00, NULL, 1.50, 0, 5, 3, NULL),
-(36, 'Martillo de uña curva 16 oz', 7.50, NULL, 4.25, 0, 5, 4, NULL),
-(37, 'Alicate universal 7\"', 6.00, NULL, 3.50, 0, 5, 4, NULL),
-(38, 'Tenaza de presión 10\"', 9.00, NULL, 5.00, 0, 5, 4, NULL),
-(39, 'Destornillador plano 1/4\" x 4\"', 2.50, NULL, 1.20, 0, 5, 4, NULL),
-(40, 'Destornillador de estrella (Phillips) #2 x 4\"', 2.50, NULL, 1.20, 0, 5, 4, NULL),
-(41, 'Llave ajustable (Cinta/Perica) 8\"', 7.50, NULL, 4.00, 0, 5, 4, NULL),
-(42, 'Cinta métrica (Flexómetro) 5 metros / 16 pies', 4.00, NULL, 2.00, 0, 5, 4, NULL),
-(43, 'Arco de sierra para metal 12\"', 5.50, NULL, 3.00, 0, 5, 4, NULL),
-(44, 'Hoja de sierra para metal 18 dientes', 1.25, NULL, 0.60, 0, 5, 5, NULL),
-(45, 'Disco de corte para metal 4 1/2\" x 1/16\"', 1.35, NULL, 0.70, 0, 5, 5, NULL),
-(46, 'Disco de corte para concreto 4 1/2\"', 4.50, NULL, 2.50, 0, 5, 5, NULL),
-(47, 'Broca para concreto 1/4\" x 4\"', 1.75, NULL, 0.90, 0, 5, 5, NULL),
-(48, 'Broca para concreto 3/8\" x 6\"', 2.75, NULL, 1.40, 0, 5, 5, NULL),
-(49, 'Broca para metal HSS 1/8\"', 1.10, NULL, 0.50, 0, 5, 5, NULL),
-(50, 'Broca para metal HSS 1/4\"', 1.80, NULL, 0.90, 0, 5, 5, NULL),
-(51, 'Foco LED 9W luz blanca (Rosca E27)', 1.75, NULL, 0.85, 0, 5, 6, NULL),
-(52, 'Foco LED 12W luz blanca (Rosca E27)', 2.25, NULL, 1.10, 0, 5, 6, NULL),
-(53, 'Foco LED 15W luz cálida (Rosca E27)', 2.75, NULL, 1.40, 0, 5, 6, NULL),
-(54, 'Tomacorriente doble polarizado (Blanco)', 2.25, NULL, 1.10, 0, 5, 6, NULL),
-(55, 'Interruptor sencillo de pared (Blanco)', 1.85, NULL, 0.90, 0, 5, 6, NULL),
-(56, 'Cinta aislante negra 18m (3M o similar)', 1.60, NULL, 0.80, 0, 5, 6, NULL),
-(57, 'Socket / Plafón de porcelana E27', 1.00, NULL, 0.45, 0, 5, 6, NULL),
-(58, 'Breaker / Cordoncillo 1 polo 20A', 5.00, NULL, 2.80, 0, 5, 6, NULL),
-(59, 'Cable eléctrico THHN N° 12 (Metro)', 0.85, NULL, 0.45, 0, 5, 6, NULL),
-(60, 'Cable eléctrico THHN N° 14 (Metro)', 0.65, NULL, 0.32, 0, 5, 6, NULL),
-(61, 'Tubo PVC agua potable 1/2\" SDR 13.5 (6m)', 3.60, NULL, 2.00, 0, 5, 7, NULL),
-(62, 'Tubo PVC agua potable 3/4\" SDR 21 (6m)', 4.80, NULL, 2.80, 0, 5, 7, NULL),
-(63, 'Codo PVC 1/2\" a 90° para agua', 0.35, NULL, 0.15, 0, 5, 7, NULL),
-(64, 'Te PVC 1/2\" para agua', 0.45, NULL, 0.20, 0, 5, 7, NULL),
-(65, 'Pegamento para PVC (Pega PVC) 4 oz', 3.00, NULL, 1.60, 0, 5, 7, NULL),
-(66, 'Cinta de teflón 1/2\" x 260\"', 0.60, NULL, 0.25, 0, 5, 7, NULL),
-(67, 'Llave de chorro bronce 1/2\"', 6.00, NULL, 3.20, 0, 5, 7, NULL),
-(68, 'Silicón transparente uso general 280ml', 4.00, NULL, 2.20, 0, 5, 7, NULL),
-(69, 'Cemento CUSCATLÁNEO / HOLCIM (Bolsa 42.5 kg)', 9.25, NULL, 7.80, 0, 5, 8, NULL),
-(70, 'Varilla de hierro corrugado 3/8\" (Grade 40 - 6m)', 3.80, NULL, 2.60, 0, 5, 8, NULL),
-(71, 'Varilla de hierro corrugado 1/2\" (Grade 40 - 6m)', 6.50, NULL, 4.60, 0, 5, 8, NULL),
-(72, 'Alambre de amarre (Libra)', 1.20, NULL, 0.70, 0, 5, 8, NULL),
-(73, 'Candado de hierro 40mm', 4.80, NULL, 2.50, 0, 5, 9, NULL),
-(74, 'Cuchilla / Exacto universal 18mm', 1.25, NULL, 0.60, 0, 5, 9, NULL),
-(75, 'Guantes de lona con puntos de PVC (Par)', 1.50, NULL, 0.75, 0, 5, 9, NULL);
+INSERT INTO `productos` (`id_producto`, `nombre_producto`, `precio_producto`, `imagen`, `precio_compra`, `stock`, `stock_minimo`, `id_categoria`, `id_ubicacion`, `codigo_barras`) VALUES
+(1, 'Tornillo para madera 1/4\" x 2\"', 0.10, NULL, 0.04, 10, 5, 1, 5, NULL),
+(2, 'Tornillo para madera 1/4\" x 3\"', 0.12, NULL, 0.06, 10, 5, 1, 6, NULL),
+(3, 'Tornillo goloso 10 x 1\"', 0.08, NULL, 0.03, 10, 5, 1, 7, NULL),
+(4, 'Tornillo de fijación para lámina 14 x 1\"', 0.10, NULL, 0.05, 10, 5, 1, 9, NULL),
+(5, 'Tornillo para drywall 6 x 1\"', 0.05, NULL, 0.02, 10, 5, 1, 19, NULL),
+(6, 'Perno hexagonal grado 2 3/8\" x 2\"', 0.35, NULL, 0.15, 10, 5, 1, 10, NULL),
+(7, 'Tuerca hexagonal 1/4\"', 0.05, NULL, 0.02, 10, 5, 1, 10, NULL),
+(8, 'Tuerca hexagonal 3/8\"', 0.10, NULL, 0.04, 784, 5, 1, 10, NULL),
+(9, 'Arandela plana 1/4\"', 0.10, NULL, 0.02, 453, 5, 1, 16, NULL),
+(10, 'Arandela de presión 3/8\"', 0.13, NULL, 0.05, 4612, 5, 1, 16, NULL),
+(11, 'Clavo con cabeza para madera 2\" (libra)', 1.25, NULL, 0.75, 10, 5, 1, 1, NULL),
+(12, 'Clavo con cabeza para madera 3\" (libra)', 1.25, NULL, 0.75, 10, 5, 1, 1, NULL),
+(13, 'Clavo para concreto 2\" (libra)', 1.75, NULL, 1.10, 50, 5, 1, 3, NULL),
+(14, 'Clavo para concreto 3\" (libra)', 1.75, NULL, 1.10, 10, 5, 1, 3, NULL),
+(15, 'Taquete / Tarugo plástico 1/4\"', 0.05, NULL, 0.02, 10, 5, 1, 14, NULL),
+(16, 'Taquete / Tarugo plástico 3/8\"', 0.10, NULL, 0.04, 10, 5, 1, 14, NULL),
+(17, 'Lija para agua N° 80', 0.75, NULL, 0.35, 10, 5, 2, 82, NULL),
+(18, 'Lija para agua N° 120', 0.75, NULL, 0.35, 10, 5, 2, 82, NULL),
+(19, 'Lija para agua N° 220', 0.75, NULL, 0.35, 10, 5, 2, 82, NULL),
+(20, 'Lija para agua N° 400', 0.80, NULL, 0.40, 10, 5, 2, 82, NULL),
+(21, 'Lija para madera N° 60', 1.00, NULL, 0.30, 10, 5, 2, 81, NULL),
+(22, 'Lija para madera N° 100', 0.60, NULL, 0.30, 10, 5, 2, 81, NULL),
+(23, 'Pintura de aceite Rojo Óxido (Galón)', 18.00, NULL, 12.50, 10, 5, 3, 69, NULL),
+(24, 'Pintura de aceite Blanco Hueso (Galón)', 19.50, NULL, 13.00, 10, 5, 3, 69, NULL),
+(25, 'Pintura de aceite Negro Mate (Galón)', 18.00, NULL, 12.50, 10, 5, 3, 69, NULL),
+(26, 'Pintura látex Blanco (Galón)', 14.50, NULL, 9.50, 10, 5, 3, 71, NULL),
+(27, 'Pintura látex Azul Colonial (Galón)', 15.50, NULL, 10.00, 10, 5, 3, 71, NULL),
+(28, 'Pintura látex Verde Bosque (Galón)', 15.50, NULL, 10.00, 10, 5, 3, 71, NULL),
+(29, 'Anti-corrosivo Gris (Galón)', 16.50, NULL, 11.00, 15, 5, 3, 69, NULL),
+(30, 'Thinner corriente (Galón)', 8.50, NULL, 5.50, 10, 5, 3, 84, NULL),
+(31, 'Solvente Mineral / Aguarrás (Galón)', 9.00, NULL, 6.00, 10, 5, 3, 84, NULL),
+(32, 'Brocha para pintura 1\"', 1.00, NULL, 0.45, 25, 5, 3, 77, NULL),
+(33, 'Brocha para pintura 2\"', 1.75, NULL, 0.85, 10, 5, 3, 77, NULL),
+(34, 'Brocha para pintura 3\"', 2.50, NULL, 1.25, 45, 5, 3, 77, NULL),
+(35, 'Rodillo para pintura felpa 9\"', 3.00, NULL, 1.50, 10, 5, 3, 78, NULL),
+(36, 'Martillo de uña curva 16 oz', 7.50, NULL, 4.25, 10, 5, 4, 21, NULL),
+(37, 'Alicate universal 7\"', 6.00, NULL, 3.50, 100, 5, 4, 29, NULL),
+(38, 'Tenaza de presión 10\"', 9.00, NULL, 5.00, 10, 5, 4, 30, NULL),
+(39, 'Destornillador plano 1/4\" x 4\"', 2.50, NULL, 1.20, 10, 5, 4, 25, NULL),
+(40, 'Destornillador de estrella (Phillips) #2 x 4\"', 2.50, NULL, 1.20, 10, 5, 4, 26, NULL),
+(41, 'Llave ajustable (Cinta/Perica) 8\"', 7.50, NULL, 4.00, 10, 5, 4, 32, NULL),
+(42, 'Cinta métrica (Flexómetro) 5 metros / 16 pies', 4.00, NULL, 2.00, 10, 5, 4, 33, NULL),
+(43, 'Arco de sierra para metal 12\"', 5.50, NULL, 3.00, 48, 5, 4, 35, NULL),
+(44, 'Hoja de sierra para metal 18 dientes', 1.25, NULL, 0.60, 10, 5, 5, 35, NULL),
+(45, 'Disco de corte para metal 4 1/2\" x 1/16\"', 1.35, NULL, 0.70, 10, 5, 5, 35, NULL),
+(46, 'Disco de corte para concreto 4 1/2\"', 4.50, NULL, 2.50, 10, 5, 5, 35, NULL),
+(47, 'Broca para concreto 1/4\" x 4\"', 1.75, NULL, 0.90, 951, 5, 5, 14, NULL),
+(48, 'Broca para concreto 3/8\" x 6\"', 2.75, NULL, 1.40, 753, 5, 5, 14, NULL),
+(49, 'Broca para metal HSS 1/8\"', 1.10, NULL, 0.50, 98, 5, 5, 9, NULL),
+(50, 'Broca para metal HSS 1/4\"', 1.80, NULL, 0.90, 42, 5, 5, 9, NULL),
+(51, 'Foco LED 9W luz blanca (Rosca E27)', 1.75, NULL, 0.85, 10, 5, 6, 65, NULL),
+(52, 'Foco LED 12W luz blanca (Rosca E27)', 2.25, NULL, 1.10, 10, 5, 6, 65, NULL),
+(53, 'Foco LED 15W luz cálida (Rosca E27)', 2.75, NULL, 1.40, 10, 5, 6, 66, NULL),
+(54, 'Tomacorriente doble polarizado (Blanco)', 2.25, NULL, 1.10, 10, 5, 6, 58, NULL),
+(55, 'Interruptor sencillo de pared (Blanco)', 1.85, NULL, 0.90, 10, 5, 6, 57, NULL),
+(56, 'Cinta aislante negra 18m (3M o similar)', 1.60, NULL, 0.80, 10, 5, 6, 61, '454545'),
+(57, 'Socket / Plafón de porcelana E27', 1.00, NULL, 0.45, 10, 5, 6, 67, NULL),
+(58, 'Breaker / Cordoncillo 1 polo 20A', 5.00, NULL, 2.80, 5132, 5, 6, 60, NULL),
+(59, 'Cable eléctrico THHN N° 12 (Metro)', 0.85, NULL, 0.45, 20, 5, 6, 53, NULL),
+(60, 'Cable eléctrico THHN N° 14 (Metro)', 0.65, NULL, 0.32, 20, 5, 6, 54, NULL),
+(61, 'Tubo PVC agua potable 1/2\" SDR 13.5 (6m)', 3.60, NULL, 2.00, 10, 5, 7, 37, NULL),
+(62, 'Tubo PVC agua potable 3/4\" SDR 21 (6m)', 4.80, NULL, 2.80, 10, 5, 7, 37, NULL),
+(63, 'Codo PVC 1/2\" a 90° para agua', 0.35, NULL, 0.15, 10, 5, 7, 41, NULL),
+(64, 'Te PVC 1/2\" para agua', 0.45, NULL, 0.20, 10, 5, 7, 43, NULL),
+(65, 'Pegamento para PVC (Pega PVC) 4 oz', 3.00, NULL, 1.60, 10, 5, 7, 51, NULL),
+(66, 'Cinta de teflón 1/2\" x 260\"', 0.60, NULL, 0.25, 10, 5, 7, 52, NULL),
+(67, 'Llave de chorro bronce 1/2\"', 6.00, NULL, 3.20, 10, 5, 7, 49, NULL),
+(68, 'Silicón transparente uso general 280ml', 4.00, NULL, 2.20, 10, 5, 7, 75, NULL),
+(69, 'Cemento CUSCATLÁNEO / HOLCIM (Bolsa 42.5 kg)', 9.25, NULL, 7.80, 165, 5, 8, 117, NULL),
+(70, 'Varilla de hierro corrugado 3/8\" (Grade 40 - 6m)', 3.80, NULL, 2.60, 551, 5, 8, 149, NULL),
+(71, 'Varilla de hierro corrugado 1/2\" (Grade 40 - 6m)', 6.50, NULL, 4.60, 451, 5, 8, 149, NULL),
+(72, 'Alambre de amarre (Libra)', 1.20, NULL, 0.70, 35, 5, 8, 152, NULL),
+(73, 'Candado de hierro 40mm', 4.80, NULL, 2.50, 123, 5, 9, 89, NULL),
+(74, 'Cuchilla / Exacto universal 18mm', 1.25, NULL, 0.60, 10, 5, 9, 34, NULL),
+(75, 'Guantes de lona con puntos de PVC (Par)', 1.50, NULL, 0.75, 10, 5, 9, 85, NULL);
 
 -- --------------------------------------------------------
 
@@ -579,9 +602,182 @@ CREATE TABLE `registos_merma` (
 
 CREATE TABLE `ubicaciones` (
   `id_ubicacion` int(11) NOT NULL,
-  `pasillo` varchar(50) NOT NULL,
-  `estante` varchar(50) NOT NULL
+  `pasillo` varchar(120) NOT NULL,
+  `estante` varchar(120) NOT NULL,
+  `bodega` varchar(50) NOT NULL,
+  `detalle` varchar(150) NOT NULL,
+  `nivel` varchar(30) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Volcado de datos para la tabla `ubicaciones`
+--
+
+INSERT INTO `ubicaciones` (`id_ubicacion`, `pasillo`, `estante`, `bodega`, `detalle`, `nivel`) VALUES
+(1, 'Pasillo 1 · Fijaciones y Unión', 'Estante 1 · Clavos', 'Bodega 1', 'Clavo con cabeza', 'Nivel 1'),
+(2, 'Pasillo 1 · Fijaciones y Unión', 'Estante 1 · Clavos', 'Bodega 1', 'Clavo sin cabeza', 'Nivel 2'),
+(3, 'Pasillo 1 · Fijaciones y Unión', 'Estante 1 · Clavos', 'Bodega 1', 'Clavo para concreto', 'Nivel 3'),
+(4, 'Pasillo 1 · Fijaciones y Unión', 'Estante 1 · Clavos', 'Bodega 1', 'Clavos galvanizados', 'Nivel 4'),
+(5, 'Pasillo 1 · Fijaciones y Unión', 'Estante 2 · Tornillos para madera', 'Bodega 1', 'Tornillo cabeza plana corta', 'Nivel 1'),
+(6, 'Pasillo 1 · Fijaciones y Unión', 'Estante 2 · Tornillos para madera', 'Bodega 1', 'Tornillo cabeza plana larga', 'Nivel 2'),
+(7, 'Pasillo 1 · Fijaciones y Unión', 'Estante 2 · Tornillos para madera', 'Bodega 1', 'Tornillo para aglomerado', 'Nivel 3'),
+(8, 'Pasillo 1 · Fijaciones y Unión', 'Estante 2 · Tornillos para madera', 'Bodega 1', 'Tornillos tirafondo', 'Nivel 4'),
+(9, 'Pasillo 1 · Fijaciones y Unión', 'Estante 3 · Tornillos para metal', 'Bodega 1', 'Tornillos autoperforantes punta broca', 'Nivel 1'),
+(10, 'Pasillo 1 · Fijaciones y Unión', 'Estante 3 · Tornillos para metal', 'Bodega 1', 'Tornillos milimétricos con tuerca', 'Nivel 2'),
+(11, 'Pasillo 1 · Fijaciones y Unión', 'Estante 3 · Tornillos para metal', 'Bodega 1', 'Tornillos de máquina cabeza redonda', 'Nivel 3'),
+(12, 'Pasillo 1 · Fijaciones y Unión', 'Estante 3 · Tornillos para metal', 'Bodega 1', 'Varillas roscadas cortas', 'Nivel 4'),
+(13, 'Pasillo 1 · Fijaciones y Unión', 'Estante 4 · Anclajes y Sujeción', 'Bodega 1', 'Remaches de aluminio', 'Nivel 1'),
+(14, 'Pasillo 1 · Fijaciones y Unión', 'Estante 4 · Anclajes y Sujeción', 'Bodega 1', 'Taquetes de plástico estándar', 'Nivel 2'),
+(15, 'Pasillo 1 · Fijaciones y Unión', 'Estante 4 · Anclajes y Sujeción', 'Bodega 1', 'Taquetes de expansión metálicos', 'Nivel 3'),
+(16, 'Pasillo 1 · Fijaciones y Unión', 'Estante 4 · Anclajes y Sujeción', 'Bodega 1', 'Arandelas planas y de presión', 'Nivel 4'),
+(17, 'Pasillo 1 · Fijaciones y Unión', 'Estante 5 · Fijaciones especiales', 'Bodega 1', 'Ganchos roscados', 'Nivel 1'),
+(18, 'Pasillo 1 · Fijaciones y Unión', 'Estante 5 · Fijaciones especiales', 'Bodega 1', 'Escuadras de unión metálicas', 'Nivel 2'),
+(19, 'Pasillo 1 · Fijaciones y Unión', 'Estante 5 · Fijaciones especiales', 'Bodega 1', 'Pijas para panel yeso o drywall', 'Nivel 3'),
+(20, 'Pasillo 1 · Fijaciones y Unión', 'Estante 5 · Fijaciones especiales', 'Bodega 1', 'Abrazaderas tipo uña', 'Nivel 4'),
+(21, 'Pasillo 2 · Herramientas Manuales', 'Estante 1 · Golpe y Percusión', 'Bodega 1', 'Martillos de uña', 'Nivel 1'),
+(22, 'Pasillo 2 · Herramientas Manuales', 'Estante 1 · Golpe y Percusión', 'Bodega 1', 'Mazos de goma', 'Nivel 2'),
+(23, 'Pasillo 2 · Herramientas Manuales', 'Estante 1 · Golpe y Percusión', 'Bodega 1', 'Cinceles de acero', 'Nivel 3'),
+(24, 'Pasillo 2 · Herramientas Manuales', 'Estante 1 · Golpe y Percusión', 'Bodega 1', 'Punzones y granetes', 'Nivel 4'),
+(25, 'Pasillo 2 · Herramientas Manuales', 'Estante 2 · Apriete y Desarmadores', 'Bodega 1', 'Desarmadores planos surtidos', 'Nivel 1'),
+(26, 'Pasillo 2 · Herramientas Manuales', 'Estante 2 · Apriete y Desarmadores', 'Bodega 1', 'Desarmadores de cruz surtidos', 'Nivel 2'),
+(27, 'Pasillo 2 · Herramientas Manuales', 'Estante 2 · Apriete y Desarmadores', 'Bodega 1', 'Desarmadores de precisión', 'Nivel 3'),
+(28, 'Pasillo 2 · Herramientas Manuales', 'Estante 2 · Apriete y Desarmadores', 'Bodega 1', 'Juegos de llaves allen o hexagonales', 'Nivel 4'),
+(29, 'Pasillo 2 · Herramientas Manuales', 'Estante 3 · Pinzas y Sujeción', 'Bodega 1', 'Pinzas de electricista', 'Nivel 1'),
+(30, 'Pasillo 2 · Herramientas Manuales', 'Estante 3 · Pinzas y Sujeción', 'Bodega 1', 'Pinzas de presión', 'Nivel 2'),
+(31, 'Pasillo 2 · Herramientas Manuales', 'Estante 3 · Pinzas y Sujeción', 'Bodega 1', 'Pinzas de punta y corte', 'Nivel 3'),
+(32, 'Pasillo 2 · Herramientas Manuales', 'Estante 3 · Pinzas y Sujeción', 'Bodega 1', 'Llaves ajustables o pericas', 'Nivel 4'),
+(33, 'Pasillo 2 · Herramientas Manuales', 'Estante 4 · Corte y Medición', 'Bodega 1', 'Flexómetros o cintas de medir', 'Nivel 1'),
+(34, 'Pasillo 2 · Herramientas Manuales', 'Estante 4 · Corte y Medición', 'Bodega 1', 'Cuchillas o cutters y repuestos', 'Nivel 2'),
+(35, 'Pasillo 2 · Herramientas Manuales', 'Estante 4 · Corte y Medición', 'Bodega 1', 'Arcos y hojas de segueta', 'Nivel 3'),
+(36, 'Pasillo 2 · Herramientas Manuales', 'Estante 4 · Corte y Medición', 'Bodega 1', 'Niveles de burbuja pequeños', 'Nivel 4'),
+(37, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 1 · Tubería PVC', 'Bodega 1', 'Tubos PVC hidráulicos', 'Nivel 1'),
+(38, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 1 · Tubería PVC', 'Bodega 1', 'Tubos PVC sanitarios', 'Nivel 2'),
+(39, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 1 · Tubería PVC', 'Bodega 1', 'Tubos CPVC para agua caliente', 'Nivel 3'),
+(40, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 1 · Tubería PVC', 'Bodega 1', 'Mangueras malladas flexibles', 'Nivel 4'),
+(41, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 2 · Conexiones Codos y Tees', 'Bodega 1', 'Codos PVC a 90 grados', 'Nivel 1'),
+(42, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 2 · Conexiones Codos y Tees', 'Bodega 1', 'Codos PVC a 45 grados', 'Nivel 2'),
+(43, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 2 · Conexiones Codos y Tees', 'Bodega 1', 'Tees hidráulicas', 'Nivel 3'),
+(44, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 2 · Conexiones Codos y Tees', 'Bodega 1', 'Reducciones buje', 'Nivel 4'),
+(45, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 3 · Conexiones Coples y Tapones', 'Bodega 1', 'Coples rectos sencillos', 'Nivel 1'),
+(46, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 3 · Conexiones Coples y Tapones', 'Bodega 1', 'Tapones macho y hembra', 'Nivel 2'),
+(47, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 3 · Conexiones Coples y Tapones', 'Bodega 1', 'Conectores roscados', 'Nivel 3'),
+(48, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 3 · Conexiones Coples y Tapones', 'Bodega 1', 'Tuercas unión de PVC', 'Nivel 4'),
+(49, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 4 · Válvulas y Selladores', 'Bodega 1', 'Llaves de esfera o paso', 'Nivel 1'),
+(50, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 4 · Válvulas y Selladores', 'Bodega 1', 'Válvulas check', 'Nivel 2'),
+(51, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 4 · Válvulas y Selladores', 'Bodega 1', 'Botes de pegamento para PVC', 'Nivel 3'),
+(52, 'Pasillo 3 · Plomería y Conexiones de PVC', 'Estante 4 · Válvulas y Selladores', 'Bodega 1', 'Cintas de teflón y empaques', 'Nivel 4'),
+(53, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 1 · Cableado Eléctrico', 'Bodega 1', 'Rollo de cable calibre 12', 'Nivel 1'),
+(54, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 1 · Cableado Eléctrico', 'Bodega 1', 'Rollo de cable calibre 14', 'Nivel 2'),
+(55, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 1 · Cableado Eléctrico', 'Bodega 1', 'Cable dúplex flexible', 'Nivel 3'),
+(56, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 1 · Cableado Eléctrico', 'Bodega 1', 'Cable para uso rudo', 'Nivel 4'),
+(57, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 2 · Apagadores y Contactos', 'Bodega 1', 'Apagadores sencillos', 'Nivel 1'),
+(58, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 2 · Apagadores y Contactos', 'Bodega 1', 'Contactos o enchufes dobles', 'Nivel 2'),
+(59, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 2 · Apagadores y Contactos', 'Bodega 1', 'Placas de pared para una ventana', 'Nivel 3'),
+(60, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 2 · Apagadores y Contactos', 'Bodega 1', 'Cajas registro plásticas', 'Nivel 4'),
+(61, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 3 · Consumibles y Cintas', 'Bodega 1', 'Cintas de aislar negras', 'Nivel 1'),
+(62, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 3 · Consumibles y Cintas', 'Bodega 1', 'Cintas de aislar de colores', 'Nivel 2'),
+(63, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 3 · Consumibles y Cintas', 'Bodega 1', 'Cinchos o amarras plásticas', 'Nivel 3'),
+(64, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 3 · Consumibles y Cintas', 'Bodega 1', 'Grapas para cable', 'Nivel 4'),
+(65, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 4 · Iluminación y Sockets', 'Bodega 1', 'Focos LED estándar luz blanca', 'Nivel 1'),
+(66, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 4 · Iluminación y Sockets', 'Bodega 1', 'Focos LED luz cálida', 'Nivel 2'),
+(67, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 4 · Iluminación y Sockets', 'Bodega 1', 'Sockets o portalámparas de plástico', 'Nivel 3'),
+(68, 'Pasillo 4 · Electricidad e Iluminación', 'Estante 4 · Iluminación y Sockets', 'Bodega 1', 'Clavijas y adaptadores múltiples', 'Nivel 4'),
+(69, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 1 · Pinturas y Esmaltes', 'Bodega 1', 'Esmaltes sintéticos en bote chico', 'Nivel 1'),
+(70, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 1 · Pinturas y Esmaltes', 'Bodega 1', 'Pintura en aerosol colores básicos', 'Nivel 2'),
+(71, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 1 · Pinturas y Esmaltes', 'Bodega 1', 'Pintura vinílica en cubeta o galón', 'Nivel 3'),
+(72, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 1 · Pinturas y Esmaltes', 'Bodega 1', 'Colorantes y entintadores', 'Nivel 4'),
+(73, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 2 · Impermeabilizantes y Selladores', 'Bodega 1', 'Impermeabilizante acrílico cubeta', 'Nivel 1'),
+(74, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 2 · Impermeabilizantes y Selladores', 'Bodega 1', 'Sellador vinílico y acrílico', 'Nivel 2'),
+(75, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 2 · Impermeabilizantes y Selladores', 'Bodega 1', 'Silicones y selladores de tubo', 'Nivel 3'),
+(76, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 2 · Impermeabilizantes y Selladores', 'Bodega 1', 'Espuma expansiva de poliuretano', 'Nivel 4'),
+(77, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 3 · Herramientas de Pintor', 'Bodega 1', 'Brochas de cerda natural', 'Nivel 1'),
+(78, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 3 · Herramientas de Pintor', 'Bodega 1', 'Rodillos para pintar con maneral', 'Nivel 2'),
+(79, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 3 · Herramientas de Pintor', 'Bodega 1', 'Cintas masking tape o de enmascarar', 'Nivel 3'),
+(80, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 3 · Herramientas de Pintor', 'Bodega 1', 'Charolas y rejillas para pintura', 'Nivel 4'),
+(81, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 4 · Limpieza y Abrasivos', 'Bodega 1', 'Lijas para madera en pliego', 'Nivel 1'),
+(82, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 4 · Limpieza y Abrasivos', 'Bodega 1', 'Lijas para agua y metal', 'Nivel 2'),
+(83, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 4 · Limpieza y Abrasivos', 'Bodega 1', 'Estopa y trapo de limpieza', 'Nivel 3'),
+(84, 'Pasillo 5 · Pinturas, Impermeabilizantes y Químicos', 'Estante 4 · Limpieza y Abrasivos', 'Bodega 1', 'Thinner y aguarrás en presentación chica', 'Nivel 4'),
+(85, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 1 · Seguridad Industrial', 'Bodega 1', 'Guantes de carnaza y nitrilo', 'Nivel 1'),
+(86, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 1 · Seguridad Industrial', 'Bodega 1', 'Lentes de protección transparente', 'Nivel 2'),
+(87, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 1 · Seguridad Industrial', 'Bodega 1', 'Mascarillas contra polvo', 'Nivel 3'),
+(88, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 1 · Seguridad Industrial', 'Bodega 1', 'Fajas lumbares y coderas', 'Nivel 4'),
+(89, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 2 · Cerraduras y Cerrajería', 'Bodega 1', 'Candados de latón tamaño chico', 'Nivel 1'),
+(90, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 2 · Cerraduras y Cerrajería', 'Bodega 1', 'Candados de alta seguridad', 'Nivel 2'),
+(91, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 2 · Cerraduras y Cerrajería', 'Bodega 1', 'Chapas de sobreponer para puerta', 'Nivel 3'),
+(92, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 2 · Cerraduras y Cerrajería', 'Bodega 1', 'Pasadores y aldabas metálicas', 'Nivel 4'),
+(93, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 3 · Jardinería Básica', 'Bodega 1', 'Mangueras de riego flexibles', 'Nivel 1'),
+(94, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 3 · Jardinería Básica', 'Bodega 1', 'Pistolas de riego y conectores', 'Nivel 2'),
+(95, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 3 · Jardinería Básica', 'Bodega 1', 'Tijeras de podar manuales', 'Nivel 3'),
+(96, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 3 · Jardinería Básica', 'Bodega 1', 'Rastrillos y palitas de mano', 'Nivel 4'),
+(97, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 4 · Ferretería General', 'Bodega 1', 'Cuerdas y lazos de ixtle o nylon', 'Nivel 1'),
+(98, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 4 · Ferretería General', 'Bodega 1', 'Cadenas eslabonadas de acero', 'Nivel 2'),
+(99, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 4 · Ferretería General', 'Bodega 1', 'Lonas impermeables plegables', 'Nivel 3'),
+(100, 'Pasillo 6 · Seguridad, Jardinería y Varios', 'Estante 4 · Ferretería General', 'Bodega 1', 'Ruedas para muebles y carritos', 'Nivel 4'),
+(101, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 1 · Bloques de cemento', 'Bodega 2', 'Bloque hueco de 15 cm', 'Nivel 1'),
+(102, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 1 · Bloques de cemento', 'Bodega 2', 'Bloque hueco de 10 cm', 'Nivel 2'),
+(103, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 1 · Bloques de cemento', 'Bodega 2', 'Bloque hueco de 20 cm', 'Nivel 3'),
+(104, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 1 · Bloques de cemento', 'Bodega 2', 'Bloque solera o bloque U', 'Nivel 4'),
+(105, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 2 · Ladrillos de barro', 'Bodega 2', 'Ladrillo de obra o calavera tradicional', 'Nivel 1'),
+(106, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 2 · Ladrillos de barro', 'Bodega 2', 'Ladrillo de barro visto o decorativo', 'Nivel 2'),
+(107, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 2 · Ladrillos de barro', 'Bodega 2', 'Ladrillo refractario para hornos', 'Nivel 3'),
+(108, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 2 · Ladrillos de barro', 'Bodega 2', 'Teja de barro tradicional', 'Nivel 4'),
+(109, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 3 · Tabla roca y fibrocemento', 'Bodega 2', 'Plancha de tabla roca estándar de 1/2 pulgada', 'Nivel 1'),
+(110, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 3 · Tabla roca y fibrocemento', 'Bodega 2', 'Plancha de tabla roca verde resistente a humedad', 'Nivel 2'),
+(111, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 3 · Tabla roca y fibrocemento', 'Bodega 2', 'Plancha de fibrocemento o Durock', 'Nivel 3'),
+(112, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 3 · Tabla roca y fibrocemento', 'Bodega 2', 'Canaletas y postes metálicos para tabla roca', 'Nivel 4'),
+(113, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 4 · Láminas para techo', 'Bodega 2', 'Lámina galvanizada acanalada', 'Nivel 1'),
+(114, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 4 · Láminas para techo', 'Bodega 2', 'Lámina troquelada o tipo teja', 'Nivel 2'),
+(115, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 4 · Láminas para techo', 'Bodega 2', 'Lámina plástica translúcida', 'Nivel 3'),
+(116, 'Zona 1 · Bloques, Ladrillos y Paredes', 'Módulo 4 · Láminas para techo', 'Bodega 2', 'Capotes y cumbreras para techo', 'Nivel 4'),
+(117, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 1 · Cemento y cal', 'Bodega 2', 'Bolsa de cemento gris estructural', 'Nivel 1'),
+(118, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 1 · Cemento y cal', 'Bodega 2', 'Bolsa de cemento blanco', 'Nivel 2'),
+(119, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 1 · Cemento y cal', 'Bodega 2', 'Bolsa de cal hidratada', 'Nivel 3'),
+(120, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 1 · Cemento y cal', 'Bodega 2', 'Cemento de fraguado rápido', 'Nivel 4'),
+(121, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 2 · Yesos y pastas', 'Bodega 2', 'Bolsa de yeso para repello y acabados', 'Nivel 1'),
+(122, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 2 · Yesos y pastas', 'Bodega 2', 'Pasta o masilla lista para tabla roca', 'Nivel 2'),
+(123, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 2 · Yesos y pastas', 'Bodega 2', 'Estuco o repello fino en bolsa', 'Nivel 3'),
+(124, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 2 · Yesos y pastas', 'Bodega 2', 'Cinta de malla y papel para juntas', 'Nivel 4'),
+(125, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 3 · Pegamentos para cerámica', 'Bodega 2', 'Pegamento para cerámica estándar', 'Nivel 1'),
+(126, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 3 · Pegamentos para cerámica', 'Bodega 2', 'Pegamento para porcelanato de alto tráfico', 'Nivel 2'),
+(127, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 3 · Pegamentos para cerámica', 'Bodega 2', 'Fragua o boquilla con color para sisas', 'Nivel 3'),
+(128, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 3 · Pegamentos para cerámica', 'Bodega 2', 'Aditivo acrílico o pegamento para concreto', 'Nivel 4'),
+(129, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 4 · Morteros e impermeabilizantes', 'Bodega 2', 'Mortero listo para pegar bloque', 'Nivel 1'),
+(130, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 4 · Morteros e impermeabilizantes', 'Bodega 2', 'Concreto premezclado en saco', 'Nivel 2'),
+(131, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 4 · Morteros e impermeabilizantes', 'Bodega 2', 'Impermeabilizante cementoso en bolsa', 'Nivel 3'),
+(132, 'Zona 2 · Cemento, Polvos y Pegamentos', 'Módulo 4 · Morteros e impermeabilizantes', 'Bodega 2', 'Sellador asfáltico o tapagoteras en cubeta', 'Nivel 4'),
+(133, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 1 · Cerámica para piso', 'Bodega 2', 'Cerámica lisa para interior', 'Nivel 1'),
+(134, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 1 · Cerámica para piso', 'Bodega 2', 'Cerámica tipo madera', 'Nivel 2'),
+(135, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 1 · Cerámica para piso', 'Bodega 2', 'Cerámica antideslizante para patio o cochera', 'Nivel 3'),
+(136, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 1 · Cerámica para piso', 'Bodega 2', 'Zócalos cerámicos', 'Nivel 4'),
+(137, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 2 · Porcelanato', 'Bodega 2', 'Porcelanato brillante rectificado', 'Nivel 1'),
+(138, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 2 · Porcelanato', 'Bodega 2', 'Porcelanato acabado mate', 'Nivel 2'),
+(139, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 2 · Porcelanato', 'Bodega 2', 'Porcelanato de formato grande', 'Nivel 3'),
+(140, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 2 · Porcelanato', 'Bodega 2', 'Listelos y decorados', 'Nivel 4'),
+(141, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 3 · Azulejo para baño y cocina', 'Bodega 2', 'Azulejo blanco brillante', 'Nivel 1'),
+(142, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 3 · Azulejo para baño y cocina', 'Bodega 2', 'Azulejos decorativos con relieve', 'Nivel 2'),
+(143, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 3 · Azulejo para baño y cocina', 'Bodega 2', 'Mallas de mosaico para ducha o cocina', 'Nivel 3'),
+(144, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 3 · Azulejo para baño y cocina', 'Bodega 2', 'Esquineros plásticos o de aluminio para cerámica', 'Nivel 4'),
+(145, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 4 · Cielo falso', 'Bodega 2', 'Tablilla de PVC para cielo falso', 'Nivel 1'),
+(146, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 4 · Cielo falso', 'Bodega 2', 'Lámina de cielo falso de fibra mineral o durapán', 'Nivel 2'),
+(147, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 4 · Cielo falso', 'Bodega 2', 'Ángulos y tees de aluminio para cielo falso', 'Nivel 3'),
+(148, 'Zona 3 · Cerámica, Pisos y Cielo Falso', 'Módulo 4 · Cielo falso', 'Bodega 2', 'Cornisas y molduras de PVC o durapax', 'Nivel 4'),
+(149, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 1 · Hierro y estructuras metálicas', 'Bodega 2', 'Varilla de hierro corrugado de 3/8 y 1/2', 'Nivel 1'),
+(150, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 1 · Hierro y estructuras metálicas', 'Bodega 2', 'Varilla de hierro corrugado de 5/8 y 3/4', 'Nivel 2'),
+(151, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 1 · Hierro y estructuras metálicas', 'Bodega 2', 'Polines C galvanizados y negros', 'Nivel 3'),
+(152, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 1 · Hierro y estructuras metálicas', 'Bodega 2', 'Alambre de amarre y malla ciclón o electrosoldada', 'Nivel 4'),
+(153, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 2 · Tubería de drenaje y aguas lluvias', 'Bodega 2', 'Tubo PVC de drenaje de 4 y 6 pulgadas', 'Nivel 1'),
+(154, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 2 · Tubería de drenaje y aguas lluvias', 'Bodega 2', 'Tubo corrugado de doble pared para drenaje pluvial', 'Nivel 2'),
+(155, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 2 · Tubería de drenaje y aguas lluvias', 'Bodega 2', 'Codos y tees grandes de drenaje', 'Nivel 3'),
+(156, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 2 · Tubería de drenaje y aguas lluvias', 'Bodega 2', 'Tapaderas de hierro fundido y concreto para cajas', 'Nivel 4'),
+(157, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 3 · Arena, grava y piedra', 'Bodega 2', 'Arena de río colada o en bolsa', 'Nivel 1'),
+(158, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 3 · Arena, grava y piedra', 'Bodega 2', 'Grava triturada número 1 y 2', 'Nivel 2'),
+(159, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 3 · Arena, grava y piedra', 'Bodega 2', 'Piedra cuarta o piedra bola para cimientos', 'Nivel 3'),
+(160, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 3 · Arena, grava y piedra', 'Bodega 2', 'Tierra blanca o selecto en saco', 'Nivel 4'),
+(161, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 4 · Tanques, canales y equipo grande', 'Bodega 2', 'Tanques plásticos para agua tipo Rotoplas', 'Nivel 1'),
+(162, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 4 · Tanques, canales y equipo grande', 'Bodega 2', 'Canales y bajantes de PVC o lámina para agua lluvia', 'Nivel 2'),
+(163, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 4 · Tanques, canales y equipo grande', 'Bodega 2', 'Carretillas de construcción y palas grandes', 'Nivel 3'),
+(164, 'Zona 4 · Patio de Hierro, Polines y Materiales Pesados', 'Patio 4 · Tanques, canales y equipo grande', 'Bodega 2', 'Andamios metálicos y escaleras de extensión', 'Nivel 4');
 
 -- --------------------------------------------------------
 
@@ -739,6 +935,7 @@ ALTER TABLE `ordenes_compra`
 --
 ALTER TABLE `productos`
   ADD PRIMARY KEY (`id_producto`),
+  ADD UNIQUE KEY `codigo_barras` (`codigo_barras`),
   ADD KEY `productos_id_ubicacion_500f9600_fk_ubicaciones_id_ubicacion` (`id_ubicacion`),
   ADD KEY `productos_id_categoria_6ba52eae_fk_categorias_id_categoria` (`id_categoria`);
 
@@ -859,7 +1056,7 @@ ALTER TABLE `django_content_type`
 -- AUTO_INCREMENT de la tabla `django_migrations`
 --
 ALTER TABLE `django_migrations`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
 
 --
 -- AUTO_INCREMENT de la tabla `empleados`
@@ -871,13 +1068,13 @@ ALTER TABLE `empleados`
 -- AUTO_INCREMENT de la tabla `metodos_pago`
 --
 ALTER TABLE `metodos_pago`
-  MODIFY `id_metodo_pago` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_metodo_pago` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT de la tabla `motivos_merma`
 --
 ALTER TABLE `motivos_merma`
-  MODIFY `id_motivo` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_motivo` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT de la tabla `ordenes_compra`
@@ -913,7 +1110,7 @@ ALTER TABLE `registos_merma`
 -- AUTO_INCREMENT de la tabla `ubicaciones`
 --
 ALTER TABLE `ubicaciones`
-  MODIFY `id_ubicacion` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_ubicacion` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=165;
 
 --
 -- AUTO_INCREMENT de la tabla `ventas`
