@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1:3306
--- Tiempo de generación: 24-11-2026 a las 12:56:02
+-- Tiempo de generación: 24-11-2026 a las 20:26:38
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -362,7 +362,8 @@ INSERT INTO `django_migrations` (`id`, `app`, `name`, `applied`) VALUES
 (18, 'inventario', '0001_initial', '2026-11-02 13:07:13.618070'),
 (19, 'sessions', '0001_initial', '2026-11-02 13:07:13.705255'),
 (20, 'inventario', '0002_ordenescompra_estado_ordenescompra_fecha_recepcion', '2026-11-13 20:04:25.263177'),
-(21, 'inventario', '0003_productos_codigo_barras_ubicaciones_bodega_and_more', '2026-11-14 20:07:22.033327');
+(21, 'inventario', '0003_productos_codigo_barras_ubicaciones_bodega_and_more', '2026-11-14 20:07:22.033327'),
+(22, 'inventario', '0004_ventas_anulada_ventas_fecha_anulacion_and_more', '2026-11-24 18:31:28.421591');
 
 -- --------------------------------------------------------
 
@@ -498,7 +499,7 @@ INSERT INTO `productos` (`id_producto`, `nombre_producto`, `precio_producto`, `i
 (16, 'Taquete / Tarugo plástico 3/8\"', 0.10, NULL, 0.04, 10, 5, 1, 14, NULL),
 (17, 'Lija para agua N° 80', 0.75, NULL, 0.35, 10, 5, 2, 82, NULL),
 (18, 'Lija para agua N° 120', 0.75, NULL, 0.35, 10, 5, 2, 82, NULL),
-(19, 'Lija para agua N° 220', 0.75, NULL, 0.35, 10, 5, 2, 82, NULL),
+(19, 'Lija para agua N° 220', 0.75, NULL, 0.35, 8, 5, 2, 82, NULL),
 (20, 'Lija para agua N° 400', 0.80, NULL, 0.40, 10, 5, 2, 82, NULL),
 (21, 'Lija para madera N° 60', 1.00, NULL, 0.30, 10, 5, 2, 81, NULL),
 (22, 'Lija para madera N° 100', 0.60, NULL, 0.30, 10, 5, 2, 81, NULL),
@@ -551,7 +552,7 @@ INSERT INTO `productos` (`id_producto`, `nombre_producto`, `precio_producto`, `i
 (69, 'Cemento CUSCATLÁNEO / HOLCIM (Bolsa 42.5 kg)', 9.25, NULL, 7.80, 165, 5, 8, 117, NULL),
 (70, 'Varilla de hierro corrugado 3/8\" (Grade 40 - 6m)', 3.80, NULL, 2.60, 551, 5, 8, 149, NULL),
 (71, 'Varilla de hierro corrugado 1/2\" (Grade 40 - 6m)', 6.50, NULL, 4.60, 451, 5, 8, 149, NULL),
-(72, 'Alambre de amarre (Libra)', 1.20, NULL, 0.70, 35, 5, 8, 152, NULL),
+(72, 'Alambre de amarre (Libra)', 1.20, NULL, 0.70, 30, 5, 8, 152, NULL),
 (73, 'Candado de hierro 40mm', 4.80, NULL, 2.50, 123, 5, 9, 89, NULL),
 (74, 'Cuchilla / Exacto universal 18mm', 1.25, NULL, 0.60, 10, 5, 9, 34, NULL),
 (75, 'Guantes de lona con puntos de PVC (Par)', 1.50, NULL, 0.75, 10, 5, 9, 85, NULL);
@@ -790,7 +791,11 @@ CREATE TABLE `ventas` (
   `fecha_venta` datetime(6) NOT NULL,
   `id_cliente` int(11) DEFAULT NULL,
   `id_empleado` int(11) DEFAULT NULL,
-  `id_metodo_pago` int(11) DEFAULT NULL
+  `id_metodo_pago` int(11) DEFAULT NULL,
+  `anulada` tinyint(1) NOT NULL,
+  `fecha_anulacion` datetime(6) DEFAULT NULL,
+  `id_empleado_anula` int(11) DEFAULT NULL,
+  `motivo_anulacion` varchar(200) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -974,7 +979,8 @@ ALTER TABLE `ventas`
   ADD PRIMARY KEY (`id_venta`),
   ADD KEY `ventas_id_cliente_e685d518_fk_clientes_id_cliente` (`id_cliente`),
   ADD KEY `ventas_id_empleado_100b8983_fk_empleados_id_empleado` (`id_empleado`),
-  ADD KEY `ventas_id_metodo_pago_0b1de702_fk_metodos_pago_id_metodo_pago` (`id_metodo_pago`);
+  ADD KEY `ventas_id_metodo_pago_0b1de702_fk_metodos_pago_id_metodo_pago` (`id_metodo_pago`),
+  ADD KEY `ventas_id_empleado_anula_b3c8c077_fk_empleados_id_empleado` (`id_empleado_anula`);
 
 --
 -- AUTO_INCREMENT de las tablas volcadas
@@ -1056,7 +1062,7 @@ ALTER TABLE `django_content_type`
 -- AUTO_INCREMENT de la tabla `django_migrations`
 --
 ALTER TABLE `django_migrations`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT de la tabla `empleados`
@@ -1203,6 +1209,7 @@ ALTER TABLE `registos_merma`
 ALTER TABLE `ventas`
   ADD CONSTRAINT `ventas_id_cliente_e685d518_fk_clientes_id_cliente` FOREIGN KEY (`id_cliente`) REFERENCES `clientes` (`id_cliente`),
   ADD CONSTRAINT `ventas_id_empleado_100b8983_fk_empleados_id_empleado` FOREIGN KEY (`id_empleado`) REFERENCES `empleados` (`id_empleado`),
+  ADD CONSTRAINT `ventas_id_empleado_anula_b3c8c077_fk_empleados_id_empleado` FOREIGN KEY (`id_empleado_anula`) REFERENCES `empleados` (`id_empleado`),
   ADD CONSTRAINT `ventas_id_metodo_pago_0b1de702_fk_metodos_pago_id_metodo_pago` FOREIGN KEY (`id_metodo_pago`) REFERENCES `metodos_pago` (`id_metodo_pago`);
 COMMIT;
 
