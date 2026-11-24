@@ -1,8 +1,9 @@
-"""Rutas de Categorías, Ubicaciones e Importación (archivo nuevo). Se incluyen desde config/urls.py."""
+"""Rutas de Categorías, Ubicaciones, Importación y Reportes (archivo nuevo). Se incluyen desde config/urls.py."""
 from django.urls import path
 
 from . import views_catalogos as v
 from . import views_importar as imp
+from . import views_reportes as rep
 
 urlpatterns = [
     path('categorias/', v.categorias_lista, name='categorias'),
@@ -16,4 +17,5 @@ urlpatterns = [
     path('importar/', imp.importar_productos, name='importar'),
     path('importar/plantilla/', imp.plantilla_productos, name='plantilla_productos'),
     path('importar/exportar/', imp.exportar_productos, name='exportar_productos'),
+    path('reportes/', rep.reportes, name='reportes'),
 ]

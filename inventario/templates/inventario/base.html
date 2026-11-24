@@ -131,6 +131,7 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
       {% if es_admin %}
       <a class="item {% if activo == 'clientes' %}activo{% endif %}" href="{% url 'clientes' %}"><i class="bi bi-people"></i> Clientes</a>
       <a class="item {% if activo == 'empleados' %}activo{% endif %}" href="{% url 'empleados' %}"><i class="bi bi-person-badge"></i> Empleados</a>
+      <a class="item {% if activo == 'reportes' %}activo{% endif %}" href="{% url 'reportes' %}"><i class="bi bi-bar-chart-line"></i> Reportes</a>
       {% endif %}
       <a class="item {% if activo == 'alertas' %}activo{% endif %}" href="{% url 'alertas' %}"><i class="bi bi-exclamation-triangle"></i> Alertas{% if alertas %}<span class="badge-n">{{ alertas }}</span>{% endif %}</a>
       <a class="item {% if activo == 'perfil' %}activo{% endif %}" href="{% url 'perfil' %}"><i class="bi bi-person"></i> Perfil</a>
@@ -202,6 +203,7 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
     {% if es_admin %}
     <a class="hoja-item" href="{% url 'clientes' %}"><i class="bi bi-people"></i> Clientes</a>
     <a class="hoja-item" href="{% url 'empleados' %}"><i class="bi bi-person-badge"></i> Empleados</a>
+    <a class="hoja-item" href="{% url 'reportes' %}"><i class="bi bi-bar-chart-line"></i> Reportes</a>
     {% endif %}
   </div>
 </div>

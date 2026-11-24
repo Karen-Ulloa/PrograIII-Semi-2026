@@ -36,11 +36,10 @@
     <video id="video-web" autoplay playsinline muted hidden></video>
 
     <div class="d-flex flex-wrap gap-2">
-      <label class="btn btn-vino mb-0" for="foto-camara"><i class="bi bi-camera"></i> Tomar foto</label>
+      <button type="button" class="btn btn-vino" id="btn-tomar"><i class="bi bi-camera"></i> Tomar foto</button>
       <input type="file" id="foto-camara" accept="image/*" capture="environment" hidden>
-      <label class="btn btn-outline-secondary mb-0" style="border-radius:30px" for="foto-archivo"><i class="bi bi-image"></i> Elegir de la galería</label>
+      <label class="btn btn-outline-secondary mb-0" style="border-radius:30px" for="foto-archivo" id="lbl-galeria"><i class="bi bi-image"></i> Elegir de la galería</label>
       <input type="file" id="foto-archivo" accept="image/*" hidden>
-      <button type="button" class="btn btn-outline-secondary" style="border-radius:30px" id="btn-web" hidden><i class="bi bi-webcam"></i> Usar cámara web</button>
       <button type="button" class="btn btn-vino" id="btn-capturar" hidden><i class="bi bi-camera-fill"></i> Capturar</button>
       <button type="button" class="btn btn-outline-secondary" style="border-radius:30px" id="btn-cancelar-web" hidden>Cancelar</button>
     </div>
@@ -138,13 +137,17 @@ function mostrar(ia, productos){
 document.getElementById('foto-camara').addEventListener('change', function(e){ procesar(e.target.files[0]); e.target.value = ''; });
 document.getElementById('foto-archivo').addEventListener('change', function(e){ procesar(e.target.files[0]); e.target.value = ''; });
 
-/* ---------- Cámara web (computadora) ---------- */
+/* ---------- Tomar foto ----------
+   Computadora (página segura o localhost): abre la cámara en vivo y se captura con "Capturar".
+   Celular: abre directamente la cámara del teléfono (funciona también sin https). */
 var esTactil = window.matchMedia('(pointer: coarse)').matches;
 var hayWeb = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && window.isSecureContext;
-var btnWeb = document.getElementById('btn-web');
+var usarCamaraEnVivo = hayWeb && !esTactil;
+
+var btnTomar = document.getElementById('btn-tomar');
+var btnGaleria = document.getElementById('lbl-galeria');
 var btnCapturar = document.getElementById('btn-capturar');
 var btnCancelar = document.getElementById('btn-cancelar-web');
-if (hayWeb && !esTactil){ btnWeb.hidden = false; }
 
 function cerrarWeb(){
   if (flujo){ flujo.getTracks().forEach(function(p){ p.stop(); }); flujo = null; }
@@ -152,16 +155,22 @@ function cerrarWeb(){
   video.hidden = true;
   btnCapturar.hidden = true;
   btnCancelar.hidden = true;
-  btnWeb.hidden = false;
+  btnTomar.hidden = false;
+  btnGaleria.hidden = false;
 }
 
-btnWeb.addEventListener('click', function(){
+btnTomar.addEventListener('click', function(){
+  if (!usarCamaraEnVivo){
+    document.getElementById('foto-camara').click();   // celular: cámara del teléfono
+    return;
+  }
   navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}, audio: false}).then(function(stream){
     flujo = stream;
     video.srcObject = stream;
     video.hidden = false;
     vista.hidden = true;
-    btnWeb.hidden = true;
+    btnTomar.hidden = true;
+    btnGaleria.hidden = true;
     btnCapturar.hidden = false;
     btnCancelar.hidden = false;
   }).catch(function(){
