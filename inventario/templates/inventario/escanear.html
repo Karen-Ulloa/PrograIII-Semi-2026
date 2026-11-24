@@ -36,18 +36,15 @@
   <h2 class="mb-3" style="font-size:34px">Escanear código</h2>
 
   <div class="caja mb-3">
-    <div id="aviso-seguro" class="alert alert-info py-2 small" hidden>
-      La cámara en vivo solo funciona en páginas seguras (https) o en <b>localhost</b>. Aquí puedes usar
-      <b>Escanear con foto</b> o escribir el código.
-    </div>
+    <p id="ayuda-foto" class="small text-muted mb-2">Toma una foto del código de barras o QR, o escríbelo abajo.</p>
 
     <div id="lector"></div>
     <div id="lector-foto" hidden></div>
 
     <div class="d-flex flex-wrap gap-2 mt-1">
-      <button type="button" class="btn btn-vino" id="btn-iniciar"><i class="bi bi-camera-video"></i> Iniciar cámara</button>
+      <button type="button" class="btn btn-vino" id="btn-iniciar" hidden><i class="bi bi-camera-video"></i> Iniciar cámara</button>
       <button type="button" class="btn btn-outline-secondary" id="btn-detener" style="border-radius:30px" hidden><i class="bi bi-stop-circle"></i> Detener</button>
-      <label class="btn btn-outline-secondary mb-0" style="border-radius:30px" for="foto-codigo"><i class="bi bi-image"></i> Escanear con foto</label>
+      <label id="lbl-foto" class="btn btn-vino mb-0" style="border-radius:30px" for="foto-codigo"><i class="bi bi-camera"></i> Escanear con foto</label>
       <input type="file" id="foto-codigo" accept="image/*" capture="environment" hidden>
     </div>
 
@@ -72,6 +69,7 @@ var ES_GESTOR = CFG.gestor === 'true';
 var lector = null;
 var camaraActiva = false;
 var seguro = !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+var camaraDisponible = false;   // se confirma abajo: página segura Y con cámara
 
 var resultado = document.getElementById('resultado');
 var btnIniciar = document.getElementById('btn-iniciar');
@@ -89,9 +87,27 @@ function aviso(texto, clase){
   resultado.innerHTML = '<div class="alert alert-' + (clase || 'warning') + ' py-2">' + esc(texto) + '</div>';
 }
 
+/* ---------- Qué mostrar según el dispositivo ---------- */
+/* La cámara en vivo solo se ofrece si la página es segura (https o localhost) y el equipo tiene cámara.
+   Si no, solo se ve "Escanear con foto" como botón principal. */
+function mostrarModo(){
+  btnIniciar.hidden = !camaraDisponible;
+  document.getElementById('ayuda-foto').hidden = camaraDisponible;
+  document.getElementById('lbl-foto').className = camaraDisponible ? 'btn btn-outline-secondary mb-0' : 'btn btn-vino mb-0';
+}
+
+function configurarCamara(){
+  if (!seguro){ mostrarModo(); return; }
+  navigator.mediaDevices.enumerateDevices().then(function(dispositivos){
+    camaraDisponible = dispositivos.some(function(d){ return d.kind === 'videoinput'; });
+  }).catch(function(){
+    camaraDisponible = true;
+  }).then(mostrarModo);
+}
+
 /* ---------- Cámara en vivo ---------- */
 function iniciar(){
-  if (!seguro){ document.getElementById('aviso-seguro').hidden = false; return; }
+  if (!camaraDisponible) return;
   lector = new Html5Qrcode('lector', opciones());
   lector.start({facingMode: 'environment'}, {fps: 10, qrbox: {width: 240, height: 240}},
     function(texto){ detener().then(function(){ buscar(texto); }); },
@@ -106,7 +122,7 @@ function iniciar(){
 }
 
 function detener(){
-  btnIniciar.hidden = false;
+  btnIniciar.hidden = !camaraDisponible;
   btnDetener.hidden = true;
   if (lector && camaraActiva){
     camaraActiva = false;
@@ -117,7 +133,7 @@ function detener(){
 
 btnIniciar.addEventListener('click', iniciar);
 btnDetener.addEventListener('click', detener);
-if (!seguro){ document.getElementById('aviso-seguro').hidden = false; }
+configurarCamara();
 
 /* ---------- Escanear con una foto (funciona sin https en el celular) ---------- */
 /* Reduce la foto: las fotos de celular son muy grandes y así se leen mejor */
@@ -207,7 +223,8 @@ function mostrarProducto(p){
   document.getElementById('btn-otro').addEventListener('click', function(){
     resultado.innerHTML = '';
     document.getElementById('codigo-manual').value = '';
-    if (seguro) iniciar();
+    if (camaraDisponible) iniciar();
+    else document.getElementById('foto-codigo').click();   // en el celular abre la cámara de fotos
   });
   resultado.scrollIntoView({behavior: 'smooth', block: 'start'});
 }

@@ -77,6 +77,7 @@ urlpatterns = [
     path('reconocer/', views_ia.reconocer_pagina, name='reconocer'),
     path('api/reconocer/', views_ia.api_reconocer, name='api_reconocer'),
     path('api/v1/', include('inventario.api_urls')),
+    path('', include('inventario.urls_catalogos')),
 ]
 
 if settings.DEBUG:

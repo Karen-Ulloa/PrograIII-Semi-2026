@@ -125,6 +125,8 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
       {% if es_gestor %}
       <a class="item {% if activo == 'proveedores' %}activo{% endif %}" href="{% url 'proveedores' %}"><i class="bi bi-truck"></i> Proveedores</a>
       <a class="item {% if activo == 'ordenes' %}activo{% endif %}" href="{% url 'ordenes' %}"><i class="bi bi-box-seam"></i> Órdenes de compra</a>
+      <a class="item {% if activo == 'categorias' %}activo{% endif %}" href="{% url 'categorias' %}"><i class="bi bi-tags"></i> Categorías</a>
+      <a class="item {% if activo == 'ubicaciones' %}activo{% endif %}" href="{% url 'ubicaciones' %}"><i class="bi bi-geo-alt"></i> Ubicaciones</a>
       {% endif %}
       {% if es_admin %}
       <a class="item {% if activo == 'clientes' %}activo{% endif %}" href="{% url 'clientes' %}"><i class="bi bi-people"></i> Clientes</a>
@@ -175,7 +177,7 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
   <a href="{% url 'productos' %}" class="{% if activo == 'productos' %}activo{% endif %}"><i class="bi bi-journal-text"></i><span>Productos</span></a>
   <a href="{% url 'ventas' %}" class="{% if activo == 'ventas' %}activo{% endif %}"><i class="bi bi-receipt"></i><span>Ventas</span></a>
   <a href="{% url 'escanear' %}" class="{% if activo == 'escanear' %}activo{% endif %}"><i class="bi bi-qr-code-scan"></i><span>Escanear</span></a>
-  <button type="button" id="btn-mas" class="{% if activo == 'asistente' or activo == 'reconocer' or activo == 'alertas' or activo == 'ordenes' or activo == 'mermas' or activo == 'proveedores' or activo == 'clientes' or activo == 'empleados' or activo == 'perfil' or activo == 'codigo' %}activo{% endif %}"><i class="bi bi-grid"></i><span>Más</span>{% if alertas %}<span class="badge-n">{{ alertas }}</span>{% endif %}</button>
+  <button type="button" id="btn-mas" class="{% if activo == 'asistente' or activo == 'reconocer' or activo == 'alertas' or activo == 'ordenes' or activo == 'mermas' or activo == 'proveedores' or activo == 'clientes' or activo == 'empleados' or activo == 'perfil' or activo == 'codigo' or activo == 'categorias' or activo == 'ubicaciones'  or activo == 'importar' %}activo{% endif %}"><i class="bi bi-grid"></i><span>Más</span>{% if alertas %}<span class="badge-n">{{ alertas }}</span>{% endif %}</button>
 </nav>
 
 <!-- Hoja "Más" -->
@@ -194,6 +196,8 @@ h1,h2,h3,h4,.titulo{font-family:'Barlow Condensed',sans-serif; font-weight:700; 
     {% if es_gestor %}
     <a class="hoja-item" href="{% url 'proveedores' %}"><i class="bi bi-truck"></i> Proveedores</a>
     <a class="hoja-item" href="{% url 'ordenes' %}"><i class="bi bi-box-seam"></i> Órdenes de compra</a>
+    <a class="hoja-item" href="{% url 'categorias' %}"><i class="bi bi-tags"></i> Categorías</a>
+    <a class="hoja-item" href="{% url 'ubicaciones' %}"><i class="bi bi-geo-alt"></i> Ubicaciones</a>
     {% endif %}
     {% if es_admin %}
     <a class="hoja-item" href="{% url 'clientes' %}"><i class="bi bi-people"></i> Clientes</a>

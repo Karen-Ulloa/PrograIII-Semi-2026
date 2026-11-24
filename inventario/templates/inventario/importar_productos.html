@@ -1,0 +1,135 @@
+{% extends 'inventario/base.html' %}
+{% block titulo %}Importar Excel - CampesinoStock{% endblock %}
+{% block encabezado %}Importar Excel{% endblock %}
+
+{% block extra_css %}
+<style>
+.nav-pills .nav-link{color:var(--vino); background:var(--panel); border:1px solid var(--borde)}
+.nav-pills .nav-link.active{background:var(--vino); color:#fff; border-color:var(--vino)}
+</style>
+{% endblock %}
+
+{% block contenido %}
+<div style="max-width:900px; margin:0 auto">
+  <a href="{% url 'productos' %}" class="small text-decoration-none" style="color:var(--vino)">&lt; Volver a productos</a>
+  <h2 class="mt-2 mb-3" style="font-size:34px">Importar productos</h2>
+
+  <ul class="nav nav-pills mb-3 gap-2" id="pestanas" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link {% if tab != 'actualizar' %}active{% endif %}" id="tab-nuevos" data-bs-toggle="pill" data-bs-target="#panel-nuevos" type="button" role="tab" style="border-radius:30px">
+        <i class="bi bi-plus-circle"></i> Productos nuevos
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link {% if tab == 'actualizar' %}active{% endif %}" id="tab-actualizar" data-bs-toggle="pill" data-bs-target="#panel-actualizar" type="button" role="tab" style="border-radius:30px">
+        <i class="bi bi-arrow-repeat"></i> Actualizar productos
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+
+    <div class="tab-pane fade {% if tab != 'actualizar' %}show active{% endif %}" id="panel-nuevos" role="tabpanel">
+      <div class="caja mb-3">
+        <p class="mb-3">Para cargar productos que <b>todavía no están</b> en el sistema. Si alguno ya existe, esa fila se marca como error y no se modifica.</p>
+        <a href="{% url 'plantilla_productos' %}" class="btn btn-outline-secondary mb-3" style="border-radius:30px">
+          <i class="bi bi-download"></i> Descargar plantilla .xlsx
+        </a>
+        <form method="post" enctype="multipart/form-data" class="form-importar">
+          {% csrf_token %}
+          <input type="hidden" name="tipo" value="nuevos">
+          <label class="small fw-bold" for="archivo-nuevos">Archivo (.xlsx o .csv, máximo 5 MB y 2000 filas)</label>
+          <input type="file" name="archivo" id="archivo-nuevos" class="form-control" accept=".xlsx,.csv" required>
+          <div class="form-text">Obligatorias: <b>nombre_producto</b>, <b>categoria</b> y <b>precio_venta</b>. La plantilla trae ejemplos: bórralos antes de subirla.</div>
+          <button class="btn btn-vino mt-3"><i class="bi bi-upload"></i> Importar productos nuevos</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="tab-pane fade {% if tab == 'actualizar' %}show active{% endif %}" id="panel-actualizar" role="tabpanel">
+      <div class="caja mb-3">
+        <p class="mb-3">Para cambiar precios u otros datos de productos que <b>ya existen</b>. Si alguno no existe, esa fila se marca como error y no se crea.</p>
+        <a href="{% url 'exportar_productos' %}" class="btn btn-outline-secondary mb-3" style="border-radius:30px">
+          <i class="bi bi-download"></i> Descargar mis productos actuales
+        </a>
+        <div class="form-text mb-3">Descárgalos, cambia lo que necesites y súbelos de nuevo. Cada producto se reconoce por su código de barras o, si no tiene, por su nombre. Una celda vacía no cambia nada.</div>
+        <form method="post" enctype="multipart/form-data" class="form-importar">
+          {% csrf_token %}
+          <input type="hidden" name="tipo" value="actualizar">
+          <label class="small fw-bold" for="archivo-actualizar">Archivo (.xlsx o .csv, máximo 5 MB y 2000 filas)</label>
+          <input type="file" name="archivo" id="archivo-actualizar" class="form-control" accept=".xlsx,.csv" required>
+
+          <label class="small fw-bold mt-3" for="modo_stock">¿Qué hago con la columna stock?</label>
+          <select name="modo_stock" id="modo_stock" class="form-select">
+            <option value="mantener">Ignorarla (solo actualizar precios y datos)</option>
+            <option value="reemplazar">Reemplazar el stock por el valor del archivo</option>
+            <option value="sumar">Sumar el valor del archivo al stock actual</option>
+          </select>
+          <div class="form-text">Si eliges reemplazar, descarga el archivo justo antes de editarlo: las ventas posteriores no aparecen en él.</div>
+          <button class="btn btn-vino mt-3"><i class="bi bi-upload"></i> Actualizar productos</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% if resultado %}
+  <div class="etiqueta">Resultado: {% if resultado.tipo == 'actualizar' %}actualización{% else %}productos nuevos{% endif %}</div>
+  <div class="row g-2 mb-3">
+    <div class="col-6 col-md-3"><div class="caja text-center"><div class="titulo" style="font-size:30px">{{ resultado.total }}</div><small class="text-muted">Filas leídas</small></div></div>
+    <div class="col-6 col-md-3"><div class="caja text-center">
+      {% if resultado.tipo == 'actualizar' %}
+        <div class="titulo" style="font-size:30px; color:var(--vino)">{{ resultado.actualizados }}</div><small class="text-muted">Actualizados</small>
+      {% else %}
+        <div class="titulo text-success" style="font-size:30px">{{ resultado.creados }}</div><small class="text-muted">Productos nuevos</small>
+      {% endif %}
+    </div></div>
+    <div class="col-6 col-md-3"><div class="caja text-center"><div class="titulo {% if resultado.n_errores %}text-danger{% endif %}" style="font-size:30px">{{ resultado.n_errores }}</div><small class="text-muted">Filas con error</small></div></div>
+  </div>
+
+  {% if resultado.categorias_nuevas or resultado.ubicaciones_nuevas %}
+  <div class="alert alert-info py-2">
+    {% if resultado.categorias_nuevas %}Categorías creadas: <b>{{ resultado.categorias_nuevas|join:", " }}</b>.{% endif %}
+    {% if resultado.ubicaciones_nuevas %}Ubicaciones creadas: <b>{{ resultado.ubicaciones_nuevas }}</b>.{% endif %}
+  </div>
+  {% endif %}
+
+  {% if resultado.n_errores %}
+  <div class="alert alert-warning py-2">
+    Las filas correctas ya se guardaron. Corrige las filas con error en tu archivo y vuelve a subirlas.
+  </div>
+  <div class="caja p-0" style="overflow-x:auto">
+    <table class="table tabla tabla-cards">
+      <thead><tr><th>Fila</th><th>Producto</th><th>Problema</th></tr></thead>
+      <tbody>
+        {% for fila, producto, mensaje in resultado.errores %}
+        <tr>
+          <td class="celda-titulo fw-semibold">Fila {{ fila }}</td>
+          <td data-label="Producto">{{ producto|default:"—" }}</td>
+          <td data-label="Problema" class="text-danger">{{ mensaje }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if resultado.errores_ocultos %}
+  <p class="small text-muted mt-2">Se muestran los primeros {{ resultado.errores|length }} errores; hay {{ resultado.errores_ocultos }} más.</p>
+  {% endif %}
+  {% elif resultado.creados or resultado.actualizados %}
+  <div class="alert alert-success py-2">Importación completa, sin errores.</div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.querySelectorAll('.form-importar').forEach(function (f) {
+  f.addEventListener('submit', function () {
+    var b = f.querySelector('button');
+    b.disabled = true;
+    b.textContent = 'Importando...';
+  });
+});
+</script>
+{% endblock %}
